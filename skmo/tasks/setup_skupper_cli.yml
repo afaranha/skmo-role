@@ -1,0 +1,133 @@
+---
+- name: Check for existing skupper CLI
+  ansible.builtin.command: skupper version
+  register: skupper_check
+  ignore_errors: true
+  changed_when: false
+  tags: [skupper_cli]
+
+- name: Gather minimal facts if architecture is undefined
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+  when: ansible_architecture is not defined
+  tags: [skupper_cli]
+
+- name: Set skupper architecture mapping
+  ansible.builtin.set_fact:
+    skmo_skupper_arch: >-
+      {{ 'amd64' if ansible_architecture in ['x86_64', 'amd64']
+         else ('arm64' if ansible_architecture in ['aarch64', 'arm64']
+         else 'unsupported') }}
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Fail if architecture unsupported
+  ansible.builtin.fail:
+    msg: "Unsupported architecture for skupper CLI: {{ ansible_architecture }}"
+  when:
+    - skupper_check.rc != 0
+    - skmo_skupper_arch == 'unsupported'
+  tags: [skupper_cli]
+
+- name: Ensure prerequisites are present (curl, tar)
+  ansible.builtin.package:
+    name:
+      - curl
+      - tar
+    state: present
+  when: skupper_check.rc != 0
+  become: true
+  tags: [skupper_cli]
+
+- name: Query latest Skupper release metadata from GitHub
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/skupperproject/skupper/releases/latest
+    method: GET
+    return_content: true
+    status_code: 200
+    headers:
+      Accept: application/vnd.github+json
+      User-Agent: ansible
+  register: _gh_rel
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Compute architecture regex
+  ansible.builtin.set_fact:
+    skmo_arch_regex: "{{ 'amd64|x86_64' if skmo_skupper_arch == 'amd64' else 'arm64|aarch64' }}"
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Determine download URL for linux asset matching arch
+  ansible.builtin.set_fact:
+    skmo_skupper_asset_url: "{{ (_gh_rel.json.assets | selectattr('name','search', '(?i)linux.*(' ~ skmo_arch_regex ~ ').*(\\.tar\\.gz|\\.tgz)$') | list)[0].browser_download_url | default('') }}"
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Fail if Skupper asset URL could not be determined
+  ansible.builtin.fail:
+    msg: "Could not find Skupper CLI asset for linux-{{ skmo_skupper_arch }} in latest release"
+  when:
+    - skupper_check.rc != 0
+    - skmo_skupper_asset_url | length == 0
+  tags: [skupper_cli]
+
+- name: Download skupper CLI tarball
+  ansible.builtin.get_url:
+    url: "{{ skmo_skupper_asset_url }}"
+    dest: "/tmp/skupper-cli-{{ skmo_skupper_arch }}.tar.gz"
+    mode: '0644'
+    force: true
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Create extraction directory
+  ansible.builtin.file:
+    path: "/tmp/skupper-extract"
+    state: directory
+    mode: '0755'
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Unpack skupper CLI
+  ansible.builtin.unarchive:
+    src: "/tmp/skupper-cli-{{ skmo_skupper_arch }}.tar.gz"
+    dest: "/tmp/skupper-extract"
+    remote_src: true
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Locate skupper binary in extracted files
+  ansible.builtin.shell: |
+    set -euo pipefail
+    find /tmp/skupper-extract -maxdepth 2 -type f -name skupper -perm -u+x | head -n1
+  args:
+    executable: /bin/bash
+  register: _skupper_bin
+  changed_when: false
+  when: skupper_check.rc != 0
+  tags: [skupper_cli]
+
+- name: Fail if skupper binary not found in archive
+  ansible.builtin.fail:
+    msg: "Skupper binary not found after extraction"
+  when:
+    - skupper_check.rc != 0
+    - (_skupper_bin.stdout | trim) == ''
+  tags: [skupper_cli]
+
+- name: Install skupper to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ _skupper_bin.stdout | trim }}"
+    dest: "/usr/local/bin/skupper"
+    mode: '0755'
+    remote_src: true
+  when: skupper_check.rc != 0
+  become: true
+  tags: [skupper_cli]
+
+- name: Verify skupper installation
+  ansible.builtin.command: skupper version
+  changed_when: false
+  tags: [skupper_cli] 

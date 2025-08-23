@@ -1,0 +1,43 @@
+---
+- name: Get OpenStackControlPlane name in {{ ns_name }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    oc {{ oc_ctx }} -n {{ ns_name }} get openstackcontrolplanes -o jsonpath='{.items[0].metadata.name}'
+  args:
+    executable: /bin/bash
+  register: _ocp_name
+  changed_when: false
+  tags: [workload_overrides]
+
+- name: Discover workload service users from openstackclient in {{ ns_name }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    oc {{ oc_ctx }} -n {{ ns_name }} rsh openstackclient \
+      openstack user list -f value -c Name --project service
+  args:
+    executable: /bin/bash
+  register: _svc_users
+  changed_when: false
+  tags: [workload_overrides]
+
+- name: Parse service user names
+  ansible.builtin.set_fact:
+    workload_service_users: "{{ _svc_users.stdout_lines | map('trim') | reject('equalto','') | map('lower') | list }}"
+  tags: [workload_overrides]
+
+- name: Compute Keystone auth URL advertised via Skupper
+  ansible.builtin.set_fact:
+    workload_keystone_auth_url: "https://{{ skmo_skupper_address_prefix }}-{{ ns_name }}"
+  tags: [workload_overrides]
+
+- name: Render workload overrides manifest
+  ansible.builtin.template:
+    src: "workload-overrides.yaml.j2"
+    dest: "{{ skmo_workload_outputs_dir }}/{{ ns_name }}-overrides.yaml"
+    mode: '0644'
+  vars:
+    controlplane_name: "{{ _ocp_name.stdout | trim }}"
+    region: "{{ workload.region }}"
+    keystone_auth_url: "{{ workload_keystone_auth_url }}"
+    service_users: "{{ workload_service_users }}"
+  tags: [workload_overrides] 

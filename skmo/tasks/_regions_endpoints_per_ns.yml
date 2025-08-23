@@ -1,0 +1,58 @@
+---
+- name: Get workload endpoints from openstackclient in {{ ns_name }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    oc {{ oc_ctx }} -n {{ ns_name }} rsh openstackclient \
+      openstack endpoint list -f json
+  args:
+    executable: /bin/bash
+  register: _endpoint_list
+  changed_when: false
+  tags: [regions_endpoints]
+
+- name: Parse workload endpoints JSON
+  ansible.builtin.set_fact:
+    _workload_endpoints: "{{ (_endpoint_list.stdout | default('[]')) | from_json }}"
+  tags: [regions_endpoints]
+
+- name: Ensure catalog services exist in regionZero (skip identity)
+  vars:
+    ep: "{{ endpoint }}"
+    service_type: "{{ ep['Service Type'] | default('') }}"
+    service_name: "{{ ep['Service Name'] | default('') }}"
+  openstack.cloud.catalog_service:
+    cloud: "{{ skmo_openstack_clouds.region_zero_cloud }}"
+    name: "{{ service_name }}"
+    type: "{{ service_type }}"
+    state: present
+  loop: "{{ _workload_endpoints }}"
+  loop_control:
+    loop_var: endpoint
+  when:
+    - service_name | length > 0
+    - service_type | length > 0
+    - (service_type | lower) != 'identity'
+  tags: [regions_endpoints]
+
+- name: Ensure endpoints exist in regionZero (skip identity)
+  vars:
+    ep: "{{ endpoint }}"
+    service_name: "{{ ep['Service Name'] | default('') }}"
+    interface_name: "{{ ep['Interface'] | default('public') | lower }}"
+    endpoint_url: "{{ ep['URL'] | default('') }}"
+    endpoint_enabled: "{{ (ep['Enabled'] | default(true)) | string | lower in ['true','yes','1'] }}"
+  openstack.cloud.endpoint:
+    cloud: "{{ skmo_openstack_clouds.region_zero_cloud }}"
+    service: "{{ service_name }}"
+    endpoint_interface: "{{ interface_name }}"
+    url: "{{ endpoint_url }}"
+    region: "{{ endpoint_region }}"
+    enabled: "{{ endpoint_enabled }}"
+    state: present
+  loop: "{{ _workload_endpoints }}"
+  loop_control:
+    loop_var: endpoint
+  when:
+    - (ep['Service Type'] | default('') | lower) != 'identity'
+    - endpoint_url | length > 0
+  tags: [regions_endpoints] 

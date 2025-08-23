@@ -1,0 +1,152 @@
+---
+- name: Ensure Skupper CRDs are installed (cluster-scoped)
+  vars:
+   sk_ctx_any: "{{ '--context ' ~ (skmo_region_zero.cluster_context | default('')) if (skmo_region_zero.cluster_context is defined and (skmo_region_zero.cluster_context | trim) != '') else '' }}"
+  ansible.builtin.shell: |
+    set -e
+    if ! oc {{ sk_ctx_any }} get crd | grep -qi "skupper\.io"; then
+      oc {{ sk_ctx_any }} apply -f https://skupper.io/v2/install.yaml
+    fi
+  args:
+    executable: /bin/bash
+  tags: [skupper]
+
+- name: Setup skupper site in each namespace
+  vars:
+    sk_ctx: "{{ '--context ' ~ item.cluster_context if (item.cluster_context is defined and (item.cluster_context | trim) != '') else '' }}"
+  ansible.builtin.shell: |
+    set -e
+    # Determine current count of Site resources (use -o name + wc -l for robustness)
+    COUNT=$(oc {{ sk_ctx }} -n {{ item.name }} get sites.skupper.io -o name 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${COUNT}" = "0" ]; then
+      skupper {{ sk_ctx }} -p kubernetes --namespace {{ item.name }} site create {{ item.name }} --wait ready
+    fi
+  args:
+    executable: /bin/bash
+  loop: "{{ skmo_namespaces }}"
+  tags: [skupper]
+
+- name: Wait for Skupper Site CR to exist in each namespace
+  vars:
+    sk_ctx: "{{ '--context ' ~ item.cluster_context if (item.cluster_context is defined and (item.cluster_context | trim) != '') else '' }}"
+  ansible.builtin.shell: |
+    set -e
+    test "$(oc {{ sk_ctx }} -n {{ item.name }} get sites.skupper.io -o name 2>/dev/null | wc -l | tr -d ' ')" != "0"
+  args:
+    executable: /bin/bash
+  register: _site_ready
+  retries: 20
+  delay: 6
+  until: _site_ready.rc == 0
+  loop: "{{ skmo_namespaces }}"
+  tags: [skupper]
+
+- name: Enable link access on regionZero (OpenShift route)
+  vars:
+    sk_ctx_zero: "{{ '--context ' ~ skmo_region_zero.cluster_context if (skmo_region_zero.cluster_context is defined and (skmo_region_zero.cluster_context | trim) != '') else '' }}"
+  ansible.builtin.shell: |
+    set -e
+    skupper {{ sk_ctx_zero }} -p kubernetes --namespace {{ skmo_region_zero.name }} site update \
+      --enable-link-access \
+      --link-access-type route \
+      --wait ready
+  args:
+    executable: /bin/bash
+  tags: [skupper]
+
+- name: Create skupper links via token (single cluster automation)
+  when: skmo_same_cluster | bool
+  block:
+    - name: Issue link token on regionZero for each workload
+      vars:
+        sk_ctx_zero: "{{ '--context ' ~ skmo_region_zero.cluster_context if (skmo_region_zero.cluster_context is defined and (skmo_region_zero.cluster_context | trim) != '') else '' }}"
+      ansible.builtin.shell: |
+        set -e
+        skupper {{ sk_ctx_zero }} -p kubernetes --namespace {{ skmo_region_zero.name }} token issue \
+          /tmp/{{ skmo_skupper_address_prefix }}-{{ item.name }}.token
+      args:
+        executable: /bin/bash
+      loop: "{{ skmo_workloads }}"
+      tags: [skupper]
+
+    - name: Redeem link token in workload namespaces
+      vars:
+        sk_ctx_w: "{{ '--context ' ~ item.cluster_context if (item.cluster_context is defined and (item.cluster_context | trim) != '') else '' }}"
+      ansible.builtin.shell: |
+        set -e
+        skupper {{ sk_ctx_w }} -p kubernetes --namespace {{ item.name }} token redeem \
+          /tmp/{{ skmo_skupper_address_prefix }}-{{ item.name }}.token
+      args:
+        executable: /bin/bash
+      loop: "{{ skmo_workloads }}"
+      tags: [skupper]
+
+    # Non-blocking link status check (informational only)
+    - name: Check link status in workloads (non-blocking)
+      vars:
+        sk_ctx_w: "{{ '--context ' ~ item.cluster_context if (item.cluster_context is defined and (item.cluster_context | trim) != '') else '' }}"
+      ansible.builtin.shell: |
+        skupper {{ sk_ctx_w }} -p kubernetes --namespace {{ item.name }} link status | grep -q "\bReady\b" || true
+      args:
+        executable: /bin/bash
+      register: _link_status
+      changed_when: false
+      failed_when: false
+      loop: "{{ skmo_workloads }}"
+      tags: [skupper]
+
+    - name: Create connector on regionZero for each workload (no wait)
+      vars:
+        sk_ctx_zero: "{{ '--context ' ~ skmo_region_zero.cluster_context if (skmo_region_zero.cluster_context is defined and (skmo_region_zero.cluster_context | trim) != '') else '' }}"
+      ansible.builtin.shell: |
+        set -e
+        # Create connector only if it does not exist yet
+        if ! skupper {{ sk_ctx_zero }} -p kubernetes --namespace {{ skmo_region_zero.name }} connector status {{ skmo_skupper_address_prefix }}-{{ item.name }} >/dev/null 2>&1; then
+          skupper {{ sk_ctx_zero }} -p kubernetes --namespace {{ skmo_region_zero.name }} connector create {{ skmo_skupper_address_prefix }}-{{ item.name }} 5000 \
+            --workload service/keystone-public \
+            --routing-key {{ skmo_skupper_address_prefix }}-{{ item.name }}
+        fi
+      args:
+        executable: /bin/bash
+      loop: "{{ skmo_workloads }}"
+      tags: [skupper]
+
+    - name: Create listener in each workload for Keystone (wait ready)
+      vars:
+        sk_ctx_w: "{{ '--context ' ~ item.cluster_context if (item.cluster_context is defined and (item.cluster_context | trim) != '') else '' }}"
+      ansible.builtin.shell: |
+        set -e
+        # Create listener only if it does not exist yet
+        if ! skupper {{ sk_ctx_w }} -p kubernetes --namespace {{ item.name }} listener status {{ skmo_skupper_address_prefix }}-{{ item.name }} >/dev/null 2>&1; then
+          skupper {{ sk_ctx_w }} -p kubernetes --namespace {{ item.name }} listener create {{ skmo_skupper_address_prefix }}-{{ item.name }} 5000 \
+            --wait ready
+        fi
+      args:
+        executable: /bin/bash
+      loop: "{{ skmo_workloads }}"
+      tags: [skupper]
+  tags: [skupper]
+
+- name: Create skupper links (multi-cluster manual step)
+  when: not skmo_same_cluster | bool
+  ansible.builtin.debug:
+    msg: >-
+      Multi-cluster manual steps per workload namespace (replace <workload> with the namespace):
+      1) Ensure a Site exists in both namespaces:
+         - skupper -p kubernetes -n {{ skmo_region_zero.name }} site create {{ skmo_region_zero.name }} --wait ready
+         - skupper -p kubernetes -n <workload> site create <workload> --wait ready
+      2) On regionZero enable link access and issue a token:
+         - skupper -p kubernetes -n {{ skmo_region_zero.name }} site update --enable-link-access --link-access-type route --wait ready
+         - skupper -p kubernetes -n {{ skmo_region_zero.name }} token issue /tmp/{{ skmo_skupper_address_prefix }}-<workload>.token
+      3) On the workload redeem the token:
+         - skupper -p kubernetes -n <workload> token redeem /tmp/{{ skmo_skupper_address_prefix }}-<workload>.token
+      4) On regionZero create the connector (no wait):
+         - skupper -p kubernetes -n {{ skmo_region_zero.name }} connector create {{ skmo_skupper_address_prefix }}-<workload> 5000 --workload service/keystone-public --routing-key {{ skmo_skupper_address_prefix }}-<workload>
+      5) On the workload create the listener (wait for ready):
+         - skupper -p kubernetes -n <workload> listener create {{ skmo_skupper_address_prefix }}-<workload> 5000 --wait ready
+      6) Verify:
+         - skupper -p kubernetes -n <workload> link status
+         - skupper -p kubernetes -n {{ skmo_region_zero.name }} connector status {{ skmo_skupper_address_prefix }}-<workload>
+         - skupper -p kubernetes -n <workload> listener status {{ skmo_skupper_address_prefix }}-<workload>
+  loop: "{{ skmo_workloads }}"
+  tags: [skupper] 

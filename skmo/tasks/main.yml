@@ -1,0 +1,24 @@
+---
+- name: Ensure skupper CLI present on control host (Fedora/RHEL)
+  ansible.builtin.include_tasks: setup_skupper_cli.yml
+
+- name: Validate inputs
+  ansible.builtin.include_tasks: validate.yml
+
+- name: Share trust: add regionZero internal CA to workload ca bundles
+  ansible.builtin.include_tasks: ca_trust.yml
+
+- name: Setup Skupper network and expose regionZero Keystone
+  ansible.builtin.include_tasks: skupper.yml
+
+- name: Create service users in workloads and mirror to regionZero
+  ansible.builtin.include_tasks: service_users.yml
+
+- name: Create regions, services and endpoints in regionZero for workloads
+  ansible.builtin.include_tasks: regions_endpoints.yml
+
+- name: Render Horizon multi-region config (regionZero)
+  ansible.builtin.include_tasks: horizon.yml
+
+- name: Render workload control-plane overrides
+  ansible.builtin.include_tasks: workload_overrides.yml 

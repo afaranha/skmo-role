@@ -1,0 +1,54 @@
+# Generated overrides for {{ controlplane_name }} in namespace {{ ns_name | default('') }}
+apiVersion: core.openstack.org/v1beta1
+kind: OpenStackControlPlane
+metadata:
+  name: {{ controlplane_name }}
+  namespace: {{ ns_name | default('openstack') }}
+spec:
+  # Secret remains the workload secret; passwords are shared
+  secret: osp-secret
+
+  # Keystone should not run in the workload region
+  keystone:
+    template:
+      replicas: 0
+  horizon:
+    enabled: false
+
+  # Global region override for Keystone client
+  keystoneAPI:
+    region: {{ region | quote }}
+
+{% set svc_user_map = dict() %}
+{% for u in service_users %}
+{% set _ = svc_user_map.update({u: (region ~ '_' ~ u)}) %}
+{% endfor %}
+
+# Per-service overrides
+{% for service in ['barbican','cinder','glance','neutron','nova','placement','telemetry'] %}
+{{ service }}:
+  enabled: true
+  template:
+    {% if service in ['cinder','neutron','nova','placement','glance'] %}
+    customServiceConfig: |
+      [keystone_authtoken]
+      www_authenticate_uri = {{ keystone_auth_url }}
+      auth_url = {{ keystone_auth_url }}
+      region_name = {{ region }}
+      {% if service in ['cinder','neutron','nova'] %}
+      [placement]
+      auth_url = {{ keystone_auth_url }}
+      region_name = {{ region }}
+      {% endif %}
+      {% if service in ['cinder','glance','nova','neutron'] %}
+      [barbican]
+      auth_url = {{ keystone_auth_url }}
+      region_name = {{ region }}
+      {% endif %}
+      [service_user]
+      auth_url = {{ keystone_auth_url }}
+    {% endif %}
+  {% if svc_user_map.get(service) %}
+  serviceUser: {{ svc_user_map.get(service) }}
+  {% endif %}
+{% endfor %} 

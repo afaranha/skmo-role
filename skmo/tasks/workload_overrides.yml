@@ -1,0 +1,19 @@
+---
+- name: Ensure output dir exists
+  ansible.builtin.file:
+    path: "{{ skmo_workload_outputs_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [workload_overrides]
+
+- name: Build overrides for each workload to use regionZero Keystone and region name
+  ansible.builtin.include_tasks: _workload_overrides_per_ns.yml
+  loop: "{{ skmo_workloads }}"
+  loop_control:
+    loop_var: workload
+  when: workload.region is defined
+  vars:
+    ns_name: "{{ workload.name }}"
+    ns_ctx: "{{ workload.cluster_context | default('') }}"
+    oc_ctx: "{{ '--context ' ~ ns_ctx if (ns_ctx is defined and (ns_ctx | trim) != '') else '' }}"
+  tags: [workload_overrides] 

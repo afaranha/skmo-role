@@ -1,0 +1,15 @@
+# Defaults for skmo role
+skmo_namespaces: []  # list of {name, cluster_context|default kubecontext, region, is_region_zero}
+skmo_skupper_address_prefix: skmo-ks
+skmo_openstack_clouds:
+  region_zero_cloud: regionzero
+  workload_clouds: []
+
+# Horizon config output path (rendered file only)
+skmo_horizon_output: ./skmo_horizon_regions.yaml
+
+# Workload control plane patch outputs
+skmo_workload_outputs_dir: ./skmo_workload_overrides
+
+# Optional: pre-supplied public CA bundle PEM(s) for workloads to be trusted by regionZero
+skmo_workload_public_ca_bundle: "" 

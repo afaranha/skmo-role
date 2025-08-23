@@ -1,0 +1,18 @@
+---
+- name: Build list of regions for Horizon
+  ansible.builtin.set_fact:
+    skmo_regions_list: "{{ skmo_workloads | map(attribute='region') | list }}"
+  tags: [horizon]
+
+- name: Render Horizon multi-region snippet
+  ansible.builtin.copy:
+    dest: "{{ skmo_horizon_output }}"
+    content: |
+      # Horizon regions configuration snippet (drop-in)
+      AVAILABLE_REGIONS = [
+      {% for r in skmo_regions_list %}
+          ("regionZero", "regionZero"),
+          ("{{ r }}", "{{ r }}"),
+      {% endfor %}
+      ]
+  tags: [horizon] 

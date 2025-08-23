@@ -1,0 +1,107 @@
+---
+- name: Find openstack client pod in {{ ns_name }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    oc {{ oc_ctx }} -n {{ ns_name }} get pod/openstackclient -o name
+  args:
+    executable: /bin/bash
+  register: _client_pod
+  changed_when: false
+  tags: [service_users]
+
+- name: Fail if no openstack client pod found in {{ ns_name }}
+  ansible.builtin.fail:
+    msg: "Could not find an openstack client pod in namespace {{ ns_name }}"
+  when: _client_pod.stdout | trim == ''
+  tags: [service_users]
+
+- name: List service users in {{ ns_name }}
+  ansible.builtin.shell: |
+    oc {{ oc_ctx }} -n {{ ns_name }} rsh openstackclient \
+      openstack user list -f value -c Name --project service
+  args:
+    executable: /bin/bash
+  register: _users_out
+  changed_when: false
+  tags: [service_users]
+
+- name: Parse workload user names
+  ansible.builtin.set_fact:
+    _workload_users: "{{ _users_out.stdout_lines | map('trim') | reject('equalto','') | list }}"
+  tags: [service_users]
+
+- name: Read osp-secret (contains service passwords) in {{ ns_name }}
+  ansible.builtin.shell: |
+    oc {{ oc_ctx }} -n {{ ns_name }} get secret osp-secret -o json
+  args:
+    executable: /bin/bash
+  register: _osp_secret_json
+  changed_when: false
+  tags: [service_users]
+
+- name: Extract secret data mapping
+  ansible.builtin.set_fact:
+    _osp_secret_data: "{{ (_osp_secret_json.stdout | from_json)['data'] | default({}) }}"
+  tags: [service_users]
+
+- name: Mirror each service user into regionZero Keystone with namespaced prefix
+  vars:
+    service_name: "{{ user_name }}"
+    secret_key: "{{ service_name | capitalize }}Password"
+    passwd_b64: "{{ _osp_secret_data.get(secret_key, '') }}"
+    passwd_plain: "{{ (passwd_b64 | b64decode) if passwd_b64 else '' }}"
+    namespaced_user: "{{ (region | default('')) ~ '_' ~ service_name }}"
+  openstack.cloud.identity_user:
+    cloud: "{{ skmo_openstack_clouds.region_zero_cloud }}"
+    interface: public
+    name: "{{ namespaced_user }}"
+    password: "{{ passwd_plain }}"
+    domain: Default
+    state: present
+  loop: "{{ _workload_users }}"
+  loop_control:
+    loop_var: user_name
+  when:
+    - region | length > 0
+    - passwd_plain | length > 0
+  tags: [service_users]
+
+- name: Ensure 'service' project exists in regionZero
+  openstack.cloud.project:
+    cloud: "{{ skmo_openstack_clouds.region_zero_cloud }}"
+    name: service
+    domain: Default
+    state: present
+  tags: [service_users]
+
+- name: Grant 'service' role to namespaced users on 'service' project
+  vars:
+    namespaced_user: "{{ (region | default('')) ~ '_' ~ user_name }}"
+  openstack.cloud.role_assignment:
+    cloud: "{{ skmo_openstack_clouds.region_zero_cloud }}"
+    user: "{{ namespaced_user }}"
+    role: service
+    project: service
+    state: present
+  loop: "{{ _workload_users }}"
+  loop_control:
+    loop_var: user_name
+  when:
+    - region | length > 0
+  tags: [service_users]
+
+- name: Grant 'admin' role to namespaced users on 'service' project
+  vars:
+    namespaced_user: "{{ (region | default('')) ~ '_' ~ user_name }}"
+  openstack.cloud.role_assignment:
+    cloud: "{{ skmo_openstack_clouds.region_zero_cloud }}"
+    user: "{{ namespaced_user }}"
+    role: admin
+    project: service
+    state: present
+  loop: "{{ _workload_users }}"
+  loop_control:
+    loop_var: user_name
+  when:
+    - region | length > 0
+  tags: [service_users] 

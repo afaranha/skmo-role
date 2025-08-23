@@ -1,0 +1,110 @@
+---
+# Process a single workload namespace for CA trust
+
+- name: Compute oc context for workload
+  ansible.builtin.set_fact:
+    oc_ctx: "{{ '--context ' ~ ns_ctx if (ns_ctx is defined and (ns_ctx | trim) != '') else '' }}"
+  tags: [ca_trust]
+
+- name: Discover OpenStackControlPlane name
+  ansible.builtin.shell: |
+    set -e
+    oc {{ oc_ctx }} -n {{ ns_name }} get openstackcontrolplane -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
+  args: { executable: /bin/bash }
+  register: _ocp_name
+  changed_when: false
+  tags: [ca_trust]
+
+- name: Fail if no OpenStackControlPlane found
+  ansible.builtin.fail:
+    msg: "No OpenStackControlPlane found in namespace {{ ns_name }}"
+  when: (_ocp_name.stdout | trim) == ''
+  tags: [ca_trust]
+
+- name: Read caBundleSecretName from control plane spec
+  ansible.builtin.shell: |
+    set -e
+    oc {{ oc_ctx }} -n {{ ns_name }} get openstackcontrolplane {{ _ocp_name.stdout | trim }} -o jsonpath='{.spec.tls.caBundleSecretName}' 2>/dev/null || true
+  args: { executable: /bin/bash }
+  register: _cabundle_name
+  changed_when: false
+  tags: [ca_trust]
+
+- name: Set desired ca bundle secret name (default if missing)
+  ansible.builtin.set_fact:
+    _desired_cabundle: "{{ (_cabundle_name.stdout | trim) if (_cabundle_name.stdout | trim) else (ns_name ~ '-custom-cacerts') }}"
+  tags: [ca_trust]
+
+- name: Ensure ca bundle secret exists in workload namespace
+  ansible.builtin.shell: |
+    set -e
+    if ! oc {{ oc_ctx }} -n {{ ns_name }} get secret {{ _desired_cabundle }} >/dev/null 2>&1; then
+      oc {{ oc_ctx }} -n {{ ns_name }} create secret generic {{ _desired_cabundle }} --from-literal=dummy=placeholder >/dev/null
+      oc {{ oc_ctx }} -n {{ ns_name }} patch secret {{ _desired_cabundle }} --type=json -p='[{"op":"remove","path":"/data/dummy"}]' >/dev/null || true
+    fi
+  args: { executable: /bin/bash }
+  changed_when: false
+  tags: [ca_trust]
+
+- name: Get existing PEM from ca bundle secret (if any)
+  ansible.builtin.shell: |
+    set -e
+    oc {{ oc_ctx }} -n {{ ns_name }} get secret {{ _desired_cabundle }} -o json | jq -r '.data | to_entries[]? | select(.key|test("(?i)(ca|tls).*(crt|pem|bundle)")) | .value' 2>/dev/null | base64 -d 2>/dev/null || true
+  args: { executable: /bin/bash }
+  register: _existing_pem
+  changed_when: false
+  tags: [ca_trust]
+
+- name: Merge regionZero CA with existing bundle deduplicated
+  ansible.builtin.shell: |
+    set -e
+    OUT=$(mktemp)
+    printf "%s\n" "{{ skmo_rz_internal_ca_pem | replace('"', '\\"') }}" >"${OUT}"
+    if [ -n "{{ (_existing_pem.stdout | trim) }}" ]; then
+      printf "%s\n" "{{ _existing_pem.stdout | replace('"', '\\"') }}" >>"${OUT}"
+    fi
+    # naive dedupe by awk on BEGIN/END CERT blocks
+    awk 'BEGIN{RS=""} /BEGIN CERTIFICATE/ {print $0"\n"}' "${OUT}" | awk '!x[$0]++' >"${OUT}.uniq"
+    cat "${OUT}.uniq"
+    rm -f "${OUT}" "${OUT}.uniq"
+  args: { executable: /bin/bash }
+  register: _merged_pem
+  changed_when: false
+  tags: [ca_trust]
+
+- name: Create temporary file for merged PEM (workload)
+  ansible.builtin.tempfile:
+    state: file
+    suffix: -wk-ca.pem
+  register: _wk_pem_tmp
+  tags: [ca_trust]
+
+- name: Write merged PEM to temporary file (workload)
+  ansible.builtin.copy:
+    dest: "{{ _wk_pem_tmp.path }}"
+    content: "{{ _merged_pem.stdout }}\n"
+    mode: '0600'
+  tags: [ca_trust]
+
+- name: Upsert combined PEM into ca bundle secret as tls-ca-bundle.pem
+  ansible.builtin.shell: |
+    set -e
+    oc {{ oc_ctx }} -n {{ ns_name }} create secret generic {{ _desired_cabundle }} --from-file=tls-ca-bundle.pem={{ _wk_pem_tmp.path }} --dry-run=client -o yaml | oc {{ oc_ctx }} -n {{ ns_name }} apply -f -
+  args: { executable: /bin/bash }
+  tags: [ca_trust]
+
+- name: Remove temporary file (workload PEM)
+  ansible.builtin.file:
+    path: "{{ _wk_pem_tmp.path }}"
+    state: absent
+  tags: [ca_trust]
+
+- name: Patch control plane spec.tls.caBundleSecretName if missing
+  ansible.builtin.shell: |
+    set -e
+    current="{{ _cabundle_name.stdout | trim }}"
+    if [ -z "${current}" ]; then
+      oc {{ oc_ctx }} -n {{ ns_name }} patch openstackcontrolplane {{ _ocp_name.stdout | trim }} --type=json -p='[{"op":"add","path":"/spec/tls","value":{"caBundleSecretName":"{{ _desired_cabundle }}"}}]'
+    fi
+  args: { executable: /bin/bash }
+  tags: [ca_trust] 

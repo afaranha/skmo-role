@@ -1,0 +1,181 @@
+---
+# Ensure workload regions trust regionZero's internal CA by updating caBundleSecretName
+
+- name: Determine oc context for regionZero
+  ansible.builtin.set_fact:
+    sk_ctx_zero: "{{ '--context ' ~ skmo_region_zero.cluster_context if (skmo_region_zero.cluster_context is defined and (skmo_region_zero.cluster_context | trim) != '') else '' }}"
+  tags: [ca_trust]
+
+- name: Extract internal CA certificate from regionZero secret (tls.crt)
+  ansible.builtin.shell: |
+    set -e
+    ns="{{ skmo_region_zero.name }}"
+    ctx="{{ sk_ctx_zero }}"
+    val=$(oc ${ctx} -n "${ns}" get secret rootca-internal -o jsonpath="{.data.tls\\.crt}" 2>/dev/null || true)
+    if [ -n "${val}" ]; then
+      echo "${val}" | base64 -d
+    fi
+  args: { executable: /bin/bash }
+  register: _rz_ca
+  changed_when: false
+  tags: [ca_trust]
+
+- name: Fail if regionZero internal CA could not be extracted
+  ansible.builtin.fail:
+    msg: "Could not extract internal CA from secret rootca-internal in namespace {{ skmo_region_zero.name }}"
+  when: (_rz_ca.stdout | trim) == ''
+  tags: [ca_trust]
+
+- name: Set fact with regionZero internal CA PEM
+  ansible.builtin.set_fact:
+    skmo_rz_internal_ca_pem: "{{ _rz_ca.stdout }}"
+  tags: [ca_trust]
+
+- name: Ensure workload caBundleSecretName contains regionZero internal CA
+  ansible.builtin.include_tasks: _ca_trust_per_ns.yml
+  loop: "{{ skmo_workloads }}"
+  loop_control:
+    loop_var: workload
+  when: workload.name is defined
+  vars:
+    ns_name: "{{ workload.name }}"
+    ns_ctx: "{{ workload.cluster_context | default('') }}"
+  tags: [ca_trust]
+
+# Now ensure regionZero trusts public CA(s) from workloads
+
+- name: Use provided workload public CA bundle if set
+  ansible.builtin.set_fact:
+    skmo_workload_public_ca_merged: "{{ skmo_workload_public_ca_bundle }}"
+  when: (skmo_workload_public_ca_bundle | default('') | trim) != ''
+  tags: [ca_trust]
+
+- name: Extract workload public CAs (tls.crt) from each workload rootca-public
+  ansible.builtin.shell: |
+    set -e
+    ns="{{ workload.name }}"
+    ctx="{{ '--context ' ~ (workload.cluster_context | default('')) if (workload.cluster_context is defined and (workload.cluster_context | trim) != '') else '' }}"
+    val=$(oc ${ctx} -n "${ns}" get secret rootca-public -o jsonpath="{.data.tls\\.crt}" 2>/dev/null || true)
+    if [ -n "${val}" ]; then
+      echo "${val}" | base64 -d
+    fi
+  args: { executable: /bin/bash }
+  loop: "{{ skmo_workloads }}"
+  loop_control:
+    loop_var: workload
+  register: _wk_public_ca_list
+  changed_when: false
+  when: (skmo_workload_public_ca_bundle | default('') | trim) == ''
+  tags: [ca_trust]
+
+- name: Build merged public CA bundle from extracted workload CAs
+  ansible.builtin.set_fact:
+    skmo_workload_public_ca_merged: "{{ (_wk_public_ca_list.results | map(attribute='stdout') | map('trim') | reject('equalto','') | list) | join('\n') }}"
+  when: (skmo_workload_public_ca_bundle | default('') | trim) == ''
+  tags: [ca_trust]
+
+- name: Skip if no workload public CA found or provided
+  ansible.builtin.debug:
+    msg: "No workload public CA provided or discovered; skipping regionZero trust update"
+  when: (skmo_workload_public_ca_merged | default('') | trim) == ''
+  tags: [ca_trust]
+
+- name: Ensure regionZero caBundleSecretName contains workload public CAs
+  when: (skmo_workload_public_ca_merged | default('') | trim) != ''
+  block:
+    - name: Discover regionZero OpenStackControlPlane name
+      ansible.builtin.shell: |
+        set -e
+        oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} get openstackcontrolplane -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
+      args: { executable: /bin/bash }
+      register: _rz_ocp
+      changed_when: false
+      tags: [ca_trust]
+
+    - name: Read regionZero caBundleSecretName
+      ansible.builtin.shell: |
+        set -e
+        oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} get openstackcontrolplane {{ _rz_ocp.stdout | trim }} -o jsonpath='{.spec.tls.caBundleSecretName}' 2>/dev/null || true
+      args: { executable: /bin/bash }
+      register: _rz_cabundle_name
+      changed_when: false
+      tags: [ca_trust]
+
+    - name: Set desired regionZero ca bundle secret name
+      ansible.builtin.set_fact:
+        _rz_desired_cabundle: "{{ (_rz_cabundle_name.stdout | trim) if (_rz_cabundle_name.stdout | trim) else (skmo_region_zero.name ~ '-custom-cacerts') }}"
+      tags: [ca_trust]
+
+    - name: Ensure regionZero ca bundle secret exists
+      ansible.builtin.shell: |
+        set -e
+        if ! oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} get secret {{ _rz_desired_cabundle }} >/dev/null 2>&1; then
+          oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} create secret generic {{ _rz_desired_cabundle }} --from-literal=dummy=placeholder >/dev/null
+          oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} patch secret {{ _rz_desired_cabundle }} --type=json -p='[{"op":"remove","path":"/data/dummy"}]' >/dev/null || true
+        fi
+      args: { executable: /bin/bash }
+      changed_when: false
+      tags: [ca_trust]
+
+    - name: Get existing PEM from regionZero ca bundle secret
+      ansible.builtin.shell: |
+        set -e
+        oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} get secret {{ _rz_desired_cabundle }} -o json | jq -r '.data | to_entries[]? | select(.key|test("(?i)(ca|tls).*(crt|pem|bundle)")) | .value' 2>/dev/null | base64 -d 2>/dev/null || true
+      args: { executable: /bin/bash }
+      register: _rz_existing_pem
+      changed_when: false
+      tags: [ca_trust]
+
+    - name: Merge workload public CAs with regionZero bundle
+      ansible.builtin.shell: |
+        set -e
+        OUT=$(mktemp)
+        if [ -n "{{ (_rz_existing_pem.stdout | trim) }}" ]; then
+          printf "%s\n" "{{ _rz_existing_pem.stdout | replace('"', '\\"') }}" >>"${OUT}"
+        fi
+        printf "%s\n" "{{ skmo_workload_public_ca_merged | replace('"','\\"') }}" >>"${OUT}"
+        # naive dedupe
+        awk 'BEGIN{RS=""} /BEGIN CERTIFICATE/ {print $0"\n"}' "${OUT}" | awk '!x[$0]++' >"${OUT}.uniq"
+        cat "${OUT}.uniq"
+        rm -f "${OUT}" "${OUT}.uniq"
+      args: { executable: /bin/bash }
+      register: _rz_merged_pem
+      changed_when: false
+      tags: [ca_trust]
+
+    - name: Create temporary file for merged PEM (regionZero)
+      ansible.builtin.tempfile:
+        state: file
+        suffix: -rz-ca.pem
+      register: _rz_pem_tmp
+      tags: [ca_trust]
+
+    - name: Write merged PEM to temporary file (regionZero)
+      ansible.builtin.copy:
+        dest: "{{ _rz_pem_tmp.path }}"
+        content: "{{ _rz_merged_pem.stdout }}\n"
+        mode: '0600'
+      tags: [ca_trust]
+
+    - name: Upsert merged PEM into regionZero ca bundle secret
+      ansible.builtin.shell: |
+        set -e
+        oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} create secret generic {{ _rz_desired_cabundle }} --from-file=tls-ca-bundle.pem={{ _rz_pem_tmp.path }} --dry-run=client -o yaml | oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} apply -f -
+      args: { executable: /bin/bash }
+      tags: [ca_trust]
+
+    - name: Remove temporary file (regionZero PEM)
+      ansible.builtin.file:
+        path: "{{ _rz_pem_tmp.path }}"
+        state: absent
+      tags: [ca_trust]
+
+    - name: Patch regionZero control plane spec.tls.caBundleSecretName if missing
+      ansible.builtin.shell: |
+        set -e
+        current="{{ _rz_cabundle_name.stdout | trim }}"
+        if [ -z "${current}" ]; then
+          oc {{ sk_ctx_zero }} -n {{ skmo_region_zero.name }} patch openstackcontrolplane {{ _rz_ocp.stdout | trim }} --type=json -p='[{"op":"add","path":"/spec/tls","value":{"caBundleSecretName":"{{ _rz_desired_cabundle }}"}}]'
+        fi
+      args: { executable: /bin/bash }
+      tags: [ca_trust] 

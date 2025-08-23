@@ -1,0 +1,20 @@
+---
+- name: Ensure exactly one regionZero namespace is provided
+  ansible.builtin.assert:
+    that:
+      - skmo_namespaces | length > 0
+      - (skmo_namespaces | selectattr('is_region_zero', 'defined') | selectattr('is_region_zero') | list | length) == 1
+    fail_msg: "Provide skmo_namespaces with exactly one is_region_zero: true"
+  tags: [validate]
+
+- name: Set facts for regionZero and workloads
+  ansible.builtin.set_fact:
+    skmo_region_zero: "{{ (skmo_namespaces | selectattr('is_region_zero', 'defined') | selectattr('is_region_zero') | list)[0] }}"
+    skmo_workloads: "{{ (skmo_namespaces | selectattr('is_region_zero', 'defined') | rejectattr('is_region_zero') | list) + (skmo_namespaces | rejectattr('is_region_zero', 'defined') | list) }}"
+  tags: [validate]
+
+- name: Determine if all namespaces use the same cluster context
+  ansible.builtin.set_fact:
+    skmo_unique_contexts: "{{ skmo_namespaces | map(attribute='cluster_context') | map('default','') | list | unique }}"
+    skmo_same_cluster: "{{ (skmo_namespaces | map(attribute='cluster_context') | map('default','') | list | unique | length) == 1 }}"
+  tags: [validate] 
