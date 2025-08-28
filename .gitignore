@@ -1,0 +1,42 @@
+# Vim swap files
+*.swp
+*.swo
+*~
+
+# Ansible
+*.retry
+.vault_pass.txt
+
+# Logs
+*.log
+/tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.ansible/tmp/
+
+# Local configuration
+local_vars.yml
+secrets.yml
