@@ -25,6 +25,11 @@ crc_openstack_dir: "/home/{{ crc_user }}/openstack"
 crc_operator_namespace: "openstack-operators"  # Default namespace for operators (both regions)
 crc_workload_namespace: ""  # Set per server (e.g., afariasa-region-1-openstack)
 
+# Install_yamls specific configuration
+crc_install_yamls_repo: "https://github.com/openstack-k8s-operators/install_yamls.git"
+crc_install_yamls_crc_url: "https://developers.redhat.com/content-gateway/rest/mirror/pub/openshift-v4/clients/crc/latest/crc-linux-amd64.tar.xz"
+crc_install_yamls_kubeadmin_pwd: "12345678"  # Default kubeadmin password for install_yamls
+
 # OpenStack Deployment Configuration
 crc_openstack_password: "openstack123"
 crc_openstack_timeout: "600s"

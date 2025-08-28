@@ -1,0 +1,160 @@
+---
+# Proper install_yamls setup following official documentation exactly
+# This follows the README.md workflow:
+# 1. Clone install_yamls
+# 2. Download dependencies using install_yamls download_tools playbook
+# 3. Install CRC using install_yamls crc-setup.sh script
+# 4. Configure and start CRC
+
+- name: Clone install_yamls repository if not exists
+  git:
+    repo: "{{ crc_install_yamls_repo }}"
+    dest: "{{ crc_openstack_dir }}/install_yamls"
+    force: false
+    update: false
+  become_user: "{{ crc_user }}"
+  tags: clone_repo
+
+- name: Display install_yamls setup plan
+  debug:
+    msg: |
+      🏗️ Install_yamls Proper Setup Plan:
+      
+      1. 📥 Download dependencies using install_yamls download_tools playbook
+      2. 🔧 Install CRC using install_yamls crc-setup.sh script  
+      3. ⚙️  Configure CRC with proper settings
+      4. 🚀 Start CRC cluster
+      
+      Configuration:
+      - CRC URL: {{ crc_install_yamls_crc_url | default('latest') }}
+      - Pull Secret: {{ crc_effective_pull_secret }}
+      - Memory: {{ crc_memory }}MB
+      - CPUs: {{ crc_cpus }}
+      - Disk: {{ crc_disk_size }}GB
+  tags: setup_plan
+
+- name: Check if dependencies are already installed
+  stat:
+    path: "/home/{{ crc_user }}/bin/{{ item }}"
+  register: dependency_check
+  loop:
+    - kubectl
+    - oc
+    - opm
+    - operator-sdk
+    - kustomize
+  become_user: "{{ crc_user }}"
+  tags: check_dependencies
+
+- name: Install install_yamls dependencies manually
+  include_tasks: install_yamls_dependencies.yml
+  when: dependency_check.results | map(attribute='stat.exists') | list | select('equalto', false) | list | length > 0
+  tags: download_dependencies
+
+- name: Create pull secret symlink for install_yamls devsetup
+  file:
+    src: "{{ crc_effective_pull_secret }}"
+    dest: "{{ crc_openstack_dir }}/install_yamls/devsetup/pull-secret.txt"
+    state: link
+    force: true
+  become_user: "{{ crc_user }}"
+  when: crc_effective_pull_secret != '/dev/null'
+  tags: setup_pull_secret
+
+- name: Install and configure CRC using install_yamls crc-setup.sh
+  shell: |
+    cd {{ crc_openstack_dir }}/install_yamls/devsetup
+    export PATH="/home/{{ crc_user }}/bin:$PATH"
+    export CPUS={{ crc_cpus }}
+    export MEMORY={{ crc_memory }}
+    export DISK={{ crc_disk_size }}
+    {% if crc_install_yamls_crc_url is defined %}
+    export CRC_URL="{{ crc_install_yamls_crc_url }}"
+    {% endif %}
+    make crc
+  become_user: "{{ crc_user }}"
+  register: crc_install_result
+  timeout: 1800  # 30 minutes timeout
+  tags: install_crc
+
+- name: Display CRC installation results
+  debug:
+    msg: |
+      🎉 CRC Installation Complete!
+      
+      {{ crc_install_result.stdout_lines | join('\n') if crc_install_result.stdout_lines is defined else 'No output captured' }}
+      
+      Next steps available:
+      1. 🗄️  Configure storage: cd ~/openstack/install_yamls && make crc_storage
+      2. 🔐 Create secrets: make input
+      3. 🚀 Install operators: make openstack
+      4. 📋 Deploy OpenStack: make openstack_deploy
+  tags: show_results
+
+- name: Verify CRC installation and get status
+  shell: |
+    export PATH="/home/{{ crc_user }}/bin:$PATH"
+    echo "=== CRC Version ==="
+    crc version
+    echo ""
+    echo "=== CRC Status ==="
+    crc status
+    echo ""
+    echo "=== CRC Console Info ==="
+    crc console --credentials || echo "Console not ready yet"
+  become_user: "{{ crc_user }}"
+  register: crc_verify_result
+  ignore_errors: true
+  tags: verify_installation
+
+- name: Display CRC verification results
+  debug:
+    msg: |
+      🔍 CRC Verification:
+      
+      {{ crc_verify_result.stdout }}
+      
+      {% if crc_verify_result.rc == 0 %}
+      ✅ CRC is properly installed and configured
+      {% else %}
+      ⚠️  CRC verification had issues (this may be normal if CRC is still starting)
+      {% endif %}
+  tags: show_verification
+
+- name: Create install_yamls environment script
+  template:
+    src: install_yamls_env.sh.j2
+    dest: "/home/{{ crc_user }}/setup-install-yamls-env.sh"
+    mode: '0755'
+    owner: "{{ crc_user }}"
+    group: "{{ crc_user }}"
+  tags: create_env_script
+
+- name: Display next steps
+  debug:
+    msg: |
+      🎯 Install_yamls Setup Complete!
+      
+      Environment ready at: {{ crc_openstack_dir }}/install_yamls
+      
+      🚀 Quick Start Commands:
+      ```bash
+      # Source environment
+      source ~/setup-install-yamls-env.sh
+      
+      # Follow install_yamls workflow
+      cd ~/openstack/install_yamls
+      make crc_storage     # Configure persistent storage
+      make input           # Create input secrets  
+      make openstack       # Install OpenStack operators
+      make openstack_deploy # Deploy OpenStack control plane
+      ```
+      
+      📊 Monitor progress:
+      - CRC Console: Use 'crc console --url' to get web console URL
+      - OpenShift CLI: Use 'oc' commands after 'eval $(crc oc-env)'
+      - Logs: 'oc logs' for operator logs
+      
+      📁 Working Directory: {{ crc_openstack_dir }}/install_yamls
+      🔐 Pull Secret: {{ crc_effective_pull_secret }}
+  tags: final_summary

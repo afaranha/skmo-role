@@ -17,8 +17,8 @@
       include_tasks: pull_secret.yml
 
     # Install_yamls approach (recommended)
-    - name: Setup CRC using install_yamls methodology
-      include_tasks: install_yamls_setup.yml
+    - name: Setup CRC using proper install_yamls methodology
+      include_tasks: install_yamls_proper_setup.yml
       when: 
         - crc_use_install_yamls_setup | default(true) | bool
         - not skip_crc_setup | default(false)
