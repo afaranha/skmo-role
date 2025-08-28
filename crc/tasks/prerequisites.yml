@@ -1,9 +1,18 @@
 ---
-- name: Install required system packages
-  package:
-    name: "{{ crc_required_packages }}"
-    state: present
-  become: yes
+- name: Install required system packages (with dnf fallback for newer systems)
+  block:
+    - name: Try installing packages with package module
+      package:
+        name: "{{ crc_required_packages }}"
+        state: present
+      become: yes
+  rescue:
+    - name: Install packages using dnf command (fallback for Python 3.13+ systems)
+      shell: |
+        dnf install -y {{ crc_required_packages | join(' ') }}
+      become: yes
+      register: dnf_install
+      changed_when: "'Nothing to do' not in dnf_install.stdout"
 
 - name: Create CRC user if not exists
   user:

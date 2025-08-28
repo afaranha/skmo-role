@@ -11,7 +11,18 @@
   ignore_errors: yes
   changed_when: false
 
-- name: Start CRC cluster if not running
+- name: Clean up any existing CRC instances if bundle mismatch
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc delete --force || echo "No existing instance to delete"
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  when: "'Running' not in crc_status.stdout"
+  register: crc_cleanup
+
+- name: Start CRC cluster
   shell: |
     export PATH=$PATH:{{ crc_install_dir }}
     {{ crc_install_dir }}/crc start --log-level {{ crc_log_level }}

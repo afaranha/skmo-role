@@ -85,7 +85,7 @@ crc_required_packages:
 # Deployment timeouts (seconds)
 crc_setup_timeout: 1800    # 30 minutes
 crc_start_timeout: 1800    # 30 minutes
-crc_openstack_timeout: 2400 # 40 minutes
+# Note: crc_openstack_timeout is defined above in OpenStack section
 
 # Feature flags
 crc_create_access_scripts: true
