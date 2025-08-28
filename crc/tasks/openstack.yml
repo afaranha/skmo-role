@@ -1,0 +1,125 @@
+---
+- name: Clone OpenStack install_yamls repository
+  git:
+    repo: "{{ crc_openstack_repo }}"
+    dest: "{{ crc_openstack_dir }}/install_yamls"
+    force: yes
+    version: main
+  become_user: "{{ crc_user }}"
+  become: yes
+
+- name: Setup oc environment and login
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc login -u kubeadmin -p {{ crc_kubeadmin_password }} https://api.crc.testing:6443
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+
+- name: Create OpenStack operator namespace
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc create namespace {{ crc_operator_namespace }} || true
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+
+- name: Create workload namespace (if specified)
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc create namespace {{ crc_workload_namespace }} || true
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  when: crc_workload_namespace is defined
+
+- name: Setup CRC storage for OpenStack
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    cd {{ crc_openstack_dir }}/install_yamls
+    make crc_storage
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  async: 600
+  poll: 15
+
+- name: Prepare OpenStack operators
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    cd {{ crc_openstack_dir }}/install_yamls
+    make openstack_prep OPENSTACK_OPERATOR_NAMESPACE={{ crc_operator_namespace }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  async: 1200
+  poll: 30
+
+- name: Deploy OpenStack with server-specific configuration
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    cd {{ crc_openstack_dir }}/install_yamls
+    make openstack {{ crc_openstack_make_args | default('') }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  async: "{{ crc_openstack_timeout }}"
+  poll: 45
+  vars:
+    default_namespace: "{{ crc_workload_namespace | default('openstack') }}"
+    make_args:
+      - "OPENSTACK_OPERATOR_NAMESPACE={{ crc_operator_namespace }}"
+      - "NAMESPACE={{ default_namespace }}"
+      - "{{ 'NETWORK_ISOLATION=true' if crc_network_isolation | default(false) else '' }}"
+      - "{{ 'OPENSTACK_CTLPLANE_INTERFACE=' + crc_ctlplane_interface if crc_ctlplane_interface is defined else '' }}"
+      - "{{ 'OPENSTACK_DATAPLANE_NETWORK_CONFIG=' + (crc_network_ranges | join(',')) if crc_network_ranges is defined else '' }}"
+    crc_openstack_make_args: "{{ make_args | select | join(' ') }}"
+
+- name: Wait for OpenStack deployment to complete
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc get pods -n {{ crc_workload_namespace | default('openstack') }} --no-headers | grep -E "(Running|Completed)" | wc -l
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: running_pods
+  retries: 30
+  delay: 60
+  until: running_pods.stdout | int > 5
+
+- name: Get OpenStack deployment status
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc get pods -n {{ crc_workload_namespace | default('openstack') }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: openstack_pods
+  changed_when: false
+
+- name: Display OpenStack deployment status
+  debug:
+    msg: |
+      OpenStack deployment completed!
+      
+      Namespace: {{ crc_workload_namespace | default('openstack') }}
+      Operator Namespace: {{ crc_operator_namespace }}
+      
+      Pods:
+      {{ openstack_pods.stdout }}

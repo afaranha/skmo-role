@@ -1,0 +1,32 @@
+---
+- name: Stop CRC cluster (if running)
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc stop
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  ignore_errors: yes
+
+- name: Delete CRC cluster
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc delete --force
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  ignore_errors: yes
+  when: crc_full_cleanup | default(false) | bool
+
+- name: Remove CRC installation (if requested)
+  file:
+    path: "{{ crc_install_dir }}"
+    state: absent
+  become: yes
+  when: crc_remove_installation | default(false) | bool
+
+- name: Display cleanup status
+  debug:
+    msg: "CRC cleanup completed on {{ inventory_hostname }}"

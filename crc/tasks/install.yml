@@ -1,0 +1,82 @@
+---
+- name: Check if CRC is already installed
+  stat:
+    path: "{{ crc_install_dir }}/crc"
+  register: crc_binary
+
+- name: Get current CRC version (if installed)
+  shell: "{{ crc_install_dir }}/crc version | grep 'CRC version' | awk '{print $3}'"
+  register: current_crc_version
+  when: crc_binary.stat.exists
+  changed_when: false
+  failed_when: false
+
+- name: Download CRC if not installed or version mismatch
+  block:
+    - name: Determine architecture
+      set_fact:
+        crc_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
+
+    - name: Download CRC archive
+      get_url:
+        url: "{{ crc_download_url }}/{{ crc_version }}/crc-linux-{{ crc_arch }}.tar.xz"
+        dest: "{{ crc_install_dir }}/crc-linux-{{ crc_arch }}.tar.xz"
+        mode: '0644'
+        owner: "{{ crc_user }}"
+        group: "{{ crc_user }}"
+      become: yes
+
+    - name: Extract CRC archive
+      unarchive:
+        src: "{{ crc_install_dir }}/crc-linux-{{ crc_arch }}.tar.xz"
+        dest: "{{ crc_install_dir }}"
+        remote_src: yes
+        creates: "{{ crc_install_dir }}/crc-linux-{{ crc_version }}-{{ crc_arch }}"
+        owner: "{{ crc_user }}"
+        group: "{{ crc_user }}"
+      become: yes
+
+    - name: Copy CRC binary to install directory
+      copy:
+        src: "{{ crc_install_dir }}/crc-linux-{{ crc_version }}-{{ crc_arch }}/crc"
+        dest: "{{ crc_install_dir }}/crc"
+        mode: '0755'
+        owner: "{{ crc_user }}"
+        group: "{{ crc_user }}"
+        remote_src: yes
+      become: yes
+
+    - name: Clean up downloaded archive
+      file:
+        path: "{{ crc_install_dir }}/crc-linux-{{ crc_arch }}.tar.xz"
+        state: absent
+
+  when: not crc_binary.stat.exists or (current_crc_version.stdout | default('') != crc_version)
+
+- name: Add CRC to PATH in user profile
+  lineinfile:
+    path: "/home/{{ crc_user }}/.bashrc"
+    line: "export PATH=$PATH:{{ crc_install_dir }}"
+    create: yes
+    owner: "{{ crc_user }}"
+    group: "{{ crc_user }}"
+  become: yes
+
+- name: Create CRC symlink in /usr/local/bin (optional)
+  file:
+    src: "{{ crc_install_dir }}/crc"
+    dest: "/usr/local/bin/crc"
+    state: link
+  become: yes
+  when: crc_create_global_symlink | default(false) | bool
+
+- name: Verify CRC installation
+  shell: "{{ crc_install_dir }}/crc version"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_version_check
+  changed_when: false
+
+- name: Display CRC version
+  debug:
+    msg: "CRC installed successfully: {{ crc_version_check.stdout }}"

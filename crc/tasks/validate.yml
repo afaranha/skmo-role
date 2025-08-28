@@ -1,0 +1,39 @@
+---
+- name: Validate CRC configuration
+  assert:
+    that:
+      - crc_version is defined
+      - crc_user is defined
+      - crc_memory | int >= 9216  # Minimum 9GB
+      - crc_cpus | int >= 4       # Minimum 4 CPUs
+      - crc_disk_size | int >= 31 # Minimum 31GB
+    fail_msg: "CRC configuration validation failed. Check minimum requirements."
+
+- name: Check if running on supported architecture
+  assert:
+    that:
+      - ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "CRC is only supported on x86_64 and aarch64 architectures"
+
+- name: Validate server configuration (if using crc_servers)
+  assert:
+    that:
+      - item.name is defined
+      - item.host is defined
+      - item.user is defined
+    fail_msg: "Each server must have name, host, and user defined"
+  loop: "{{ crc_servers }}"
+  when: crc_servers | length > 0
+
+- name: Check memory requirements
+  debug:
+    msg: "Warning: CRC requires significant resources ({{ crc_memory }}MB RAM, {{ crc_cpus }} CPUs)"
+  when: crc_memory | int > ansible_memtotal_mb * 0.8
+
+- name: Validate OpenStack configuration
+  assert:
+    that:
+      - crc_operator_namespace is defined
+      - crc_openstack_repo is defined
+    fail_msg: "OpenStack deployment requires operator_namespace and repo URL"
+  when: crc_deploy_openstack | bool

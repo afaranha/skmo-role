@@ -1,9 +1,13 @@
 # Defaults for skmo role
-skmo_namespaces: []  # list of {name, cluster_context|default kubecontext, region, is_region_zero}
+skmo_namespaces: []  # list of {name, cluster_context|default kubecontext, region, is_region_zero, server_host}
 skmo_skupper_address_prefix: skmo-ks
 skmo_openstack_clouds:
   region_zero_cloud: regionzero
   workload_clouds: []
+
+# Server-specific configuration
+skmo_server_configs_dir: "./server_configs"
+skmo_generate_deployment_scripts: true
 
 # Horizon config output path (rendered file only)
 skmo_horizon_output: ./skmo_horizon_regions.yaml

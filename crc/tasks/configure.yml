@@ -1,0 +1,65 @@
+---
+- name: Configure CRC basic settings
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc config set memory {{ crc_memory }}
+    {{ crc_install_dir }}/crc config set cpus {{ crc_cpus }}
+    {{ crc_install_dir }}/crc config set disk-size {{ crc_disk_size }}
+    {{ crc_install_dir }}/crc config set enable-cluster-monitoring {{ crc_enable_cluster_monitoring | lower }}
+    {{ crc_install_dir }}/crc config set kubeadmin-password {{ crc_kubeadmin_password }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+
+- name: Configure CRC pull secret (if provided)
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc config set pull-secret-file {{ crc_pull_secret_path }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  when: crc_pull_secret_path != ""
+
+- name: Apply additional CRC configuration
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc config set {{ item.key }} {{ item.value }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  loop: "{{ crc_additional_config | dict2items }}"
+  when: crc_additional_config | length > 0
+
+- name: Check current CRC configuration
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc config view
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_config_output
+  changed_when: false
+
+- name: Display CRC configuration
+  debug:
+    msg: "{{ crc_config_output.stdout_lines }}"
+
+- name: Setup CRC (prepare environment)
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc setup
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  async: "{{ crc_setup_timeout }}"
+  poll: 30
+  register: crc_setup_result
+
+- name: Display CRC setup result
+  debug:
+    msg: "CRC setup completed: {{ crc_setup_result.stdout }}"

@@ -1,0 +1,40 @@
+---
+- name: CRC Multi-Server Deployment
+  tags: [crc, always]
+  block:
+    - name: Validate CRC configuration
+      include_tasks: validate.yml
+      run_once: true
+
+    - name: Setup system prerequisites
+      include_tasks: prerequisites.yml
+
+    - name: Install CRC binary
+      include_tasks: install.yml
+
+    - name: Configure CRC
+      include_tasks: configure.yml
+
+    - name: Start CRC cluster
+      include_tasks: start.yml
+
+    - name: Deploy OpenStack (if enabled)
+      include_tasks: openstack.yml
+      when: crc_deploy_openstack | bool
+
+    - name: Create access scripts
+      include_tasks: access_scripts.yml
+      when: crc_create_access_scripts | bool
+
+    - name: Validate deployment
+      include_tasks: validate_deployment.yml
+      when: crc_validate_deployment | bool
+
+  rescue:
+    - name: Handle CRC deployment failure
+      include_tasks: cleanup.yml
+      when: crc_cleanup_on_failure | default(false) | bool
+
+    - name: Fail with error message
+      fail:
+        msg: "CRC deployment failed on {{ inventory_hostname }}. Check logs for details."

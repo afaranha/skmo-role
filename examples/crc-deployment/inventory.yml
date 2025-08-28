@@ -1,0 +1,35 @@
+---
+# Example inventory for multi-server CRC deployment
+crc_servers:
+  hosts:
+    afariasa-region-1:
+      ansible_host: 10.0.79.173
+      ansible_user: fedora
+      region_name: region-1
+      server_namespace: afariasa-region-1-openstack
+      network_isolation: true
+      network_ranges:
+        - "172.17.0.0/16"
+        - "172.18.0.0/16"
+        - "172.19.0.0/16"
+        - "172.20.0.0/16"
+      ctlplane_interface: enp1s0
+      
+    afariasa-region-2:
+      ansible_host: 10.0.79.110
+      ansible_user: fedora
+      region_name: region-2
+      server_namespace: afariasa-region-2-openstack
+      network_isolation: true
+      network_ranges:
+        - "172.27.0.0/16"
+        - "172.28.0.0/16"
+        - "172.29.0.0/16"
+        - "172.30.0.0/16"
+      ctlplane_interface: enp1s0
+
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_become: yes
+    ansible_become_method: sudo

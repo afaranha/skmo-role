@@ -1,0 +1,28 @@
+---
+galaxy_info:
+  author: SKMO Team
+  description: Ansible role for deploying CodeReady Containers (CRC) on multiple servers
+  company: Red Hat
+  license: Apache-2.0
+  min_ansible_version: '2.9'
+  
+  platforms:
+    - name: Fedora
+      versions:
+        - 38
+        - 39
+        - 40
+    - name: EL
+      versions:
+        - 8
+        - 9
+
+  galaxy_tags:
+    - crc
+    - openshift
+    - containers
+    - kubernetes
+    - development
+    - openstack
+
+dependencies: []

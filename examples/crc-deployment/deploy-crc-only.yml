@@ -1,0 +1,29 @@
+---
+- name: Deploy CRC Only (No OpenStack)
+  hosts: crc_servers
+  gather_facts: true
+  become: yes
+  
+  vars:
+    crc_version: "2.43.0"
+    crc_user: "fedora"
+    crc_memory: "12288"  # 12GB
+    crc_cpus: "6"
+    crc_disk_size: "60"
+    crc_deploy_openstack: false  # CRC only
+    crc_create_access_scripts: true
+  
+  roles:
+    - role: crc
+
+  post_tasks:
+    - name: Display CRC-only access information
+      debug:
+        msg: |
+          ✅ CRC-only deployment complete!
+          
+          Your OpenShift cluster is ready:
+          ssh {{ crc_user }}@{{ ansible_host }}
+          ./crc-access.sh
+          
+          Console: https://console-openshift-console.apps-crc.testing

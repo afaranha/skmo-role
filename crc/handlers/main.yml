@@ -1,0 +1,22 @@
+---
+- name: restart crc
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc stop
+    sleep 5
+    {{ crc_install_dir }}/crc start
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+
+- name: reload systemd
+  systemd:
+    daemon_reload: yes
+  become: yes
+
+- name: restart network
+  service:
+    name: NetworkManager
+    state: restarted
+  become: yes

@@ -1,0 +1,72 @@
+---
+- name: Validate CRC cluster status
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc status | grep "Running"
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_validation
+  failed_when: crc_validation.rc != 0
+
+- name: Validate oc CLI access
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc whoami
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: oc_validation
+
+- name: Validate cluster nodes
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc get nodes --no-headers | grep Ready | wc -l
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: ready_nodes
+
+- name: Validate OpenStack deployment (if enabled)
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc get pods -n {{ crc_workload_namespace | default('openstack') }} --no-headers | grep Running | wc -l
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: openstack_validation
+  when: crc_deploy_openstack | bool
+
+- name: Generate deployment report
+  set_fact:
+    deployment_report:
+      server: "{{ inventory_hostname }}"
+      crc_status: "{{ 'Running' if crc_validation.rc == 0 else 'Failed' }}"
+      user: "{{ oc_validation.stdout | default('Unknown') }}"
+      ready_nodes: "{{ ready_nodes.stdout | int }}"
+      openstack_pods: "{{ openstack_validation.stdout | default('N/A') if crc_deploy_openstack else 'Disabled' }}"
+      access_url: "https://console-openshift-console.apps-crc.testing"
+      deployment_time: "{{ ansible_date_time.iso8601 }}"
+
+- name: Display deployment report
+  debug:
+    msg: |
+      ✅ DEPLOYMENT VALIDATION COMPLETE
+      ================================
+      
+      Server: {{ deployment_report.server }}
+      CRC Status: {{ deployment_report.crc_status }}
+      Logged in as: {{ deployment_report.user }}
+      Ready Nodes: {{ deployment_report.ready_nodes }}
+      OpenStack Pods: {{ deployment_report.openstack_pods }}
+      Console URL: {{ deployment_report.access_url }}
+      Completed: {{ deployment_report.deployment_time }}
+      
+      🎉 Ready for use!

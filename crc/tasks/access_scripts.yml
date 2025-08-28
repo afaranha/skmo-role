@@ -1,0 +1,51 @@
+---
+- name: Create CRC access script
+  template:
+    src: crc_access.sh.j2
+    dest: "/home/{{ crc_user }}/crc-access.sh"
+    mode: '0755'
+    owner: "{{ crc_user }}"
+    group: "{{ crc_user }}"
+  become: yes
+
+- name: Create OpenStack access script (if OpenStack deployed)
+  template:
+    src: openstack_access.sh.j2
+    dest: "/home/{{ crc_user }}/openstack-access.sh"
+    mode: '0755'
+    owner: "{{ crc_user }}"
+    group: "{{ crc_user }}"
+  become: yes
+  when: crc_deploy_openstack | bool
+
+- name: Create management script
+  template:
+    src: manage_crc.sh.j2
+    dest: "/home/{{ crc_user }}/manage-crc.sh"
+    mode: '0755'
+    owner: "{{ crc_user }}"
+    group: "{{ crc_user }}"
+  become: yes
+
+- name: Create environment setup script
+  template:
+    src: setup_env.sh.j2
+    dest: "/home/{{ crc_user }}/setup-env.sh"
+    mode: '0755'
+    owner: "{{ crc_user }}"
+    group: "{{ crc_user }}"
+  become: yes
+
+- name: Display access information
+  debug:
+    msg: |
+      Access scripts created in /home/{{ crc_user }}/:
+      
+      🔧 ./crc-access.sh        - CRC cluster access
+      🌐 ./openstack-access.sh  - OpenStack services
+      ⚙️  ./manage-crc.sh       - CRC management (start/stop/restart)
+      🛠️  ./setup-env.sh        - Environment setup
+      
+      To access your deployment:
+      ssh {{ crc_user }}@{{ inventory_hostname }}
+      ./crc-access.sh

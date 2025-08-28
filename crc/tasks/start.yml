@@ -1,0 +1,97 @@
+---
+- name: Check current CRC status
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc status
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_status
+  ignore_errors: yes
+  changed_when: false
+
+- name: Start CRC cluster if not running
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc start --log-level {{ crc_log_level }}
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  async: "{{ crc_start_timeout }}"
+  poll: 30
+  register: crc_start_result
+  when: "'Running' not in crc_status.stdout"
+
+- name: Wait for CRC to be ready
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc status | grep "Running"
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_ready
+  retries: 20
+  delay: 30
+  until: crc_ready.rc == 0
+
+- name: Get CRC cluster information
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc console --credentials
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_credentials
+  changed_when: false
+
+- name: Get oc environment setup
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    {{ crc_install_dir }}/crc oc-env
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_oc_env
+  changed_when: false
+
+- name: Display CRC access information
+  debug:
+    msg: |
+      CRC Cluster is ready!
+      
+      {{ crc_credentials.stdout }}
+      
+      To setup oc CLI:
+      {{ crc_oc_env.stdout }}
+
+- name: Test oc login
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc login -u kubeadmin -p {{ crc_kubeadmin_password }} https://api.crc.testing:6443
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: oc_login_test
+
+- name: Verify cluster nodes
+  shell: |
+    export PATH=$PATH:{{ crc_install_dir }}
+    eval $({{ crc_install_dir }}/crc oc-env)
+    oc get nodes
+  environment:
+    HOME: "/home/{{ crc_user }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: cluster_nodes
+  changed_when: false
+
+- name: Display cluster status
+  debug:
+    msg: "Cluster nodes: {{ cluster_nodes.stdout_lines }}"

@@ -1,0 +1,60 @@
+#!/bin/bash
+# Auto-generated deployment script for {{ server_host | default('default') }}
+# Namespace: {{ ns_name }}
+# Region: {{ region }}
+# Generated on: {{ ansible_date_time.iso8601 | default('') }}
+
+set -euo pipefail
+
+echo "=== Deploying {{ ns_name }} on {{ server_host | default('local') }} ==="
+
+# Configuration
+NAMESPACE="{{ ns_name }}"
+CONTEXT="{{ ns_ctx }}"
+REGION="{{ region }}"
+SERVER="{{ server_host | default('local') }}"
+
+# Set context if provided
+if [ -n "${CONTEXT}" ]; then
+    OC_CMD="oc --context=${CONTEXT}"
+    echo "Using context: ${CONTEXT}"
+else
+    OC_CMD="oc"
+    echo "Using default context"
+fi
+
+# Verify namespace exists
+echo "Checking namespace ${NAMESPACE}..."
+if ! ${OC_CMD} get namespace "${NAMESPACE}" >/dev/null 2>&1; then
+    echo "Error: Namespace ${NAMESPACE} does not exist!"
+    echo "Please create it first: ${OC_CMD} create namespace ${NAMESPACE}"
+    exit 1
+fi
+
+# Check for OpenStackControlPlane
+echo "Checking for OpenStackControlPlane in ${NAMESPACE}..."
+OCP_NAME=$(${OC_CMD} -n "${NAMESPACE}" get openstackcontrolplane -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+if [ -z "${OCP_NAME}" ]; then
+    echo "Warning: No OpenStackControlPlane found in ${NAMESPACE}"
+    echo "This may be expected if CRC/OpenStack is not yet deployed"
+else
+    echo "Found OpenStackControlPlane: ${OCP_NAME}"
+fi
+
+# Check for openstackclient pod
+echo "Checking for openstackclient pod..."
+if ${OC_CMD} -n "${NAMESPACE}" get pod/openstackclient >/dev/null 2>&1; then
+    echo "✓ openstackclient pod is available"
+    
+    # Test OpenStack connectivity
+    echo "Testing OpenStack CLI connectivity..."
+    if ${OC_CMD} -n "${NAMESPACE}" rsh openstackclient openstack token issue >/dev/null 2>&1; then
+        echo "✓ OpenStack CLI is working"
+    else
+        echo "⚠ OpenStack CLI test failed - may need configuration"
+    fi
+else
+    echo "⚠ openstackclient pod not found - will be needed for service discovery"
+fi
+
+echo "=== Deployment check completed for {{ ns_name }} ==="
