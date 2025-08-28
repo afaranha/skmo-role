@@ -1,0 +1,86 @@
+---
+- name: Start CRC using install_yamls methodology
+  hosts: all
+  become: false
+  gather_facts: true
+  vars:
+    crc_user: fedora
+
+  tasks:
+    - name: Display current status
+      debug:
+        msg: |
+          🚀 Starting CRC on {{ inventory_hostname }}
+          
+          This will use the install_yamls approach to start CRC properly
+
+    - name: Check CRC status
+      shell: |
+        export PATH="/home/{{ crc_user }}/bin:$PATH"
+        crc status
+      register: crc_status_check
+      ignore_errors: true
+
+    - name: Display current CRC status
+      debug:
+        msg: |
+          📊 Current CRC Status on {{ inventory_hostname }}:
+          {{ crc_status_check.stdout }}
+
+    - name: Start CRC if not running
+      shell: |
+        export PATH="/home/{{ crc_user }}/bin:$PATH"
+        cd /home/{{ crc_user }}/openstack/install_yamls/devsetup
+        export CPUS=12
+        export MEMORY=25600
+        export DISK=100
+        crc start
+      become_user: "{{ crc_user }}"
+      register: crc_start_result
+      when: "'Running' not in crc_status_check.stdout"
+      timeout: 1800  # 30 minutes timeout
+
+    - name: Display CRC start results
+      debug:
+        msg: |
+          🎉 CRC Start Results for {{ inventory_hostname }}:
+          
+          {% if crc_start_result.skipped is defined %}
+          ✅ CRC was already running
+          {% else %}
+          {{ crc_start_result.stdout | default('No output') }}
+          {% endif %}
+
+    - name: Verify CRC is running
+      shell: |
+        export PATH="/home/{{ crc_user }}/bin:$PATH"
+        crc status
+      register: final_crc_status
+      become_user: "{{ crc_user }}"
+
+    - name: Get CRC credentials
+      shell: |
+        export PATH="/home/{{ crc_user }}/bin:$PATH"
+        crc console --credentials
+      register: crc_credentials
+      become_user: "{{ crc_user }}"
+      ignore_errors: true
+
+    - name: Final summary
+      debug:
+        msg: |
+          ✅ CRC Status for {{ inventory_hostname }}:
+          
+          {{ final_crc_status.stdout }}
+          
+          📋 Credentials:
+          {{ crc_credentials.stdout | default('Credentials not available yet') }}
+          
+          🚀 Ready for OpenStack deployment:
+          ```bash
+          ssh {{ crc_user }}@{{ ansible_default_ipv4.address }}
+          cd ~/openstack/install_yamls
+          make crc_storage
+          make input
+          make openstack
+          ```
