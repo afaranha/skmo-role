@@ -6,6 +6,9 @@ export PATH=$PATH:{{ crc_install_dir }}
 
 echo "☁️  OpenStack Access - {{ inventory_hostname }}"
 echo "=============================================="
+echo "Region: {{ region_name | default('region-1') }}"
+echo "Date: $(date)"
+echo ""
 
 # Setup oc environment
 eval $({{ crc_install_dir }}/crc oc-env)
@@ -14,30 +17,82 @@ eval $({{ crc_install_dir }}/crc oc-env)
 oc login -u kubeadmin -p {{ crc_kubeadmin_password }} https://api.crc.testing:6443 >/dev/null 2>&1
 
 NAMESPACE="{{ crc_workload_namespace | default('openstack') }}"
+OPERATOR_NAMESPACE="{{ crc_operator_namespace }}"
 
-echo "📊 OpenStack Services Status:"
-oc get pods -n $NAMESPACE
-
+echo "📊 OpenStack Control Plane Status:"
+oc get openstackcontrolplane -n $NAMESPACE 2>/dev/null || echo "No OpenStackControlPlane found"
 echo ""
+
+echo "🚀 Pod Status Summary:"
+RUNNING_PODS=$(oc get pods -n $NAMESPACE --no-headers 2>/dev/null | grep -E "(Running|Completed)" | wc -l)
+TOTAL_PODS=$(oc get pods -n $NAMESPACE --no-headers 2>/dev/null | wc -l)
+echo "Running/Completed: $RUNNING_PODS/$TOTAL_PODS"
+echo ""
+
+echo "📦 Key Service Pods:"
+oc get pods -n $NAMESPACE 2>/dev/null | grep -E "(keystone|nova|glance|neutron|cinder|heat)" | head -8 || echo "No key service pods found yet"
+echo ""
+
 echo "🌐 Service Endpoints:"
 oc get routes -n $NAMESPACE 2>/dev/null || echo "No routes found"
+echo ""
+
+echo "🔗 Services:"
+oc get svc -n $NAMESPACE 2>/dev/null | grep -E "(keystone|nova|glance|neutron)" | head -5 || echo "Core services not ready"
+echo ""
+
+echo "💻 OpenStack CLI Access:"
+if oc get pod/openstackclient -n $NAMESPACE >/dev/null 2>&1; then
+  POD_STATUS=$(oc get pod/openstackclient -n $NAMESPACE -o jsonpath='{.status.phase}' 2>/dev/null)
+  if [ "$POD_STATUS" = "Running" ]; then
+    echo "✅ OpenStack CLI pod is running"
+    echo "🔑 Test authentication:"
+    oc rsh -n $NAMESPACE openstackclient openstack token issue 2>/dev/null | head -10 || echo "⚠️  OpenStack services not ready for CLI access yet"
+  else
+    echo "⏳ OpenStack CLI pod status: $POD_STATUS"
+  fi
+else
+  echo "⏳ OpenStack CLI pod not found yet"
+fi
 
 echo ""
 echo "📋 Useful Commands:"
-echo "  oc get pods -n $NAMESPACE                    # Show OpenStack pods"
-echo "  oc logs -n $NAMESPACE <pod-name>             # View pod logs"
-echo "  oc describe pod -n $NAMESPACE <pod-name>     # Pod details"
-echo "  oc get secrets -n $NAMESPACE                 # Show secrets"
+echo "  oc get openstackcontrolplane -n $NAMESPACE    # Check control plane status"
+echo "  oc get pods -n $NAMESPACE                     # Show all OpenStack pods"
+echo "  oc logs -n $NAMESPACE <pod-name>              # View pod logs"
+echo "  oc describe pod -n $NAMESPACE <pod-name>      # Pod details"
+echo "  oc get secrets -n $NAMESPACE                  # Show secrets"
+echo "  oc get events -n $NAMESPACE --sort-by='.lastTimestamp' | tail -10  # Recent events"
 
 echo ""
-echo "🔧 Port Forward Examples:"
-echo "  # Horizon Dashboard:"
-echo "  oc port-forward -n $NAMESPACE service/horizon 8080:80"
-echo "  # Then visit: http://localhost:8080"
+echo "🔧 Access Methods:"
 echo ""
-echo "  # Keystone API:"
-echo "  oc port-forward -n $NAMESPACE service/keystone-public 5000:5000"
+echo "  📱 Horizon Dashboard (when ready):"
+echo "    oc port-forward -n $NAMESPACE service/horizon 8080:80"
+echo "    # Then visit: http://localhost:8080"
+echo ""
+echo "  🔑 Keystone API:"
+echo "    oc port-forward -n $NAMESPACE service/keystone-public 5000:5000"
+echo ""
+echo "  💻 OpenStack CLI (when ready):"
+echo "    oc rsh -n $NAMESPACE openstackclient"
+echo "    # Then run: openstack token issue"
 
 echo ""
-echo "📁 Namespace: $NAMESPACE"
-echo "🏷️  Operator Namespace: {{ crc_operator_namespace }}"
+echo "📁 Configuration:"
+echo "  Workload Namespace: $NAMESPACE"
+echo "  Operator Namespace: $OPERATOR_NAMESPACE"
+echo "  Region: {{ region_name | default('region-1') }}"
+echo "  Network Isolation: {{ 'Enabled' if crc_network_isolation | default(true) else 'Disabled' }}"
+{% if crc_network_ranges is defined and crc_network_ranges | length > 0 %}
+echo "  Network Ranges: {{ crc_network_ranges | join(', ') }}"
+{% endif %}
+
+echo ""
+echo "🔍 Monitoring:"
+echo "  ./monitor-openstack-{{ inventory_hostname }}.sh   # Detailed monitoring script"
+echo "  ./openstack-config-{{ inventory_hostname }}.md    # Configuration documentation"
+
+echo ""
+echo "⚠️  Note: If services are not ready, wait a few minutes and try again."
+echo "   OpenStack deployment can take 30-60 minutes to fully complete."

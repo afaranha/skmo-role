@@ -8,11 +8,12 @@ crc_servers:
       region_name: region-1
       server_namespace: afariasa-region-1-openstack
       network_isolation: true
+      # Network ranges for install_yamls network isolation
       network_ranges:
-        - "172.17.0.0/16"
-        - "172.18.0.0/16"
-        - "172.19.0.0/16"
-        - "172.20.0.0/16"
+        - "172.17.0"  # Internal API
+        - "172.18.0"  # Storage
+        - "172.19.0"  # Tenant
+        - "172.20.0"  # Storage Management
       ctlplane_interface: enp1s0
       
     afariasa-region-2:
@@ -21,11 +22,12 @@ crc_servers:
       region_name: region-2
       server_namespace: afariasa-region-2-openstack
       network_isolation: true
+      # Network ranges for install_yamls network isolation (different from region-1)
       network_ranges:
-        - "172.27.0.0/16"
-        - "172.28.0.0/16"
-        - "172.29.0.0/16"
-        - "172.30.0.0/16"
+        - "172.27.0"  # Internal API
+        - "172.28.0"  # Storage
+        - "172.29.0"  # Tenant
+        - "172.30.0"  # Storage Management
       ctlplane_interface: enp1s0
 
   vars:

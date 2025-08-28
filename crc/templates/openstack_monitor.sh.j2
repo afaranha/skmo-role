@@ -1,0 +1,69 @@
+#!/bin/bash
+# OpenStack monitoring script for {{ inventory_hostname }}
+# Generated on: {{ ansible_date_time.iso8601 }}
+
+export PATH=$PATH:{{ crc_install_dir }}
+eval $({{ crc_install_dir }}/crc oc-env)
+
+echo "🔍 OpenStack Status for {{ inventory_hostname }}"
+echo "========================================"
+echo "Region: {{ region_name | default('region-1') }} {{ '(Region Zero)' if (inventory_hostname == groups['crc_servers'][0] if groups is defined else true) else '(Workload)' }}"
+echo "Namespace: {{ crc_workload_namespace | default('openstack') }}"
+echo "Operator Namespace: {{ crc_operator_namespace }}"
+echo "Date: $(date)"
+echo ""
+
+echo "📋 Operator Status:"
+oc get subscription,csv -n {{ crc_operator_namespace }} 2>/dev/null || echo "No operators found"
+echo ""
+
+echo "🏗️  OpenStack Control Plane:"
+oc get openstackcontrolplane -n {{ crc_workload_namespace | default('openstack') }} 2>/dev/null || echo "No control plane found"
+echo ""
+
+echo "🚀 Pod Status (Running/Completed):"
+RUNNING_PODS=$(oc get pods -n {{ crc_workload_namespace | default('openstack') }} --no-headers 2>/dev/null | grep -E "(Running|Completed)" | wc -l)
+TOTAL_PODS=$(oc get pods -n {{ crc_workload_namespace | default('openstack') }} --no-headers 2>/dev/null | wc -l)
+echo "Running/Completed: $RUNNING_PODS/$TOTAL_PODS"
+echo ""
+
+echo "📦 Key Pods:"
+oc get pods -n {{ crc_workload_namespace | default('openstack') }} 2>/dev/null | grep -E "(keystone|nova|glance|neutron|cinder|heat|octavia)" | head -10 || echo "No key service pods found yet"
+echo ""
+
+echo "🌐 Services:"
+oc get svc -n {{ crc_workload_namespace | default('openstack') }} 2>/dev/null | head -5 || echo "No services found"
+echo ""
+
+echo "🔗 Routes:"
+oc get routes -n {{ crc_workload_namespace | default('openstack') }} 2>/dev/null || echo "No routes found"
+echo ""
+
+echo "🔧 Network Attachments:"
+oc get network-attachment-definitions -n {{ crc_workload_namespace | default('openstack') }} 2>/dev/null || echo "No network attachments found"
+echo ""
+
+echo "💻 OpenStack CLI Test:"
+if oc get pod/openstackclient -n {{ crc_workload_namespace | default('openstack') }} >/dev/null 2>&1; then
+  POD_STATUS=$(oc get pod/openstackclient -n {{ crc_workload_namespace | default('openstack') }} -o jsonpath='{.status.phase}' 2>/dev/null)
+  if [ "$POD_STATUS" = "Running" ]; then
+    echo "Testing OpenStack CLI..."
+    oc rsh -n {{ crc_workload_namespace | default('openstack') }} openstackclient openstack token issue 2>/dev/null || echo "OpenStack not ready yet"
+  else
+    echo "openstackclient pod status: $POD_STATUS"
+  fi
+else
+  echo "openstackclient pod not found"
+fi
+
+echo ""
+echo "🛠️  Manual Commands:"
+echo "Check status: oc get openstackcontrolplane -n {{ crc_workload_namespace | default('openstack') }}"
+echo "Watch progress: oc get pods -n {{ crc_workload_namespace | default('openstack') }} -w"
+echo "Check events: oc get events -n {{ crc_workload_namespace | default('openstack') }} --sort-by='.lastTimestamp' | tail -10"
+echo ""
+echo "📖 Continue with install_yamls:"
+echo "  cd {{ crc_openstack_dir }}/install_yamls"
+echo "  export NAMESPACE={{ crc_workload_namespace | default('openstack') }}"
+echo "  export OPERATOR_NAMESPACE={{ crc_operator_namespace }}"
+echo "  make openstack_wait_deploy"

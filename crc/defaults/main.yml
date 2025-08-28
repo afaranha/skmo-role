@@ -22,7 +22,27 @@ crc_nameserver: "1.1.1.1"
 crc_deploy_openstack: true
 crc_openstack_repo: "https://github.com/openstack-k8s-operators/install_yamls.git"
 crc_openstack_dir: "/home/{{ crc_user }}/openstack"
-crc_operator_namespace: "openstack-operators"
+crc_operator_namespace: "openstack-operators"  # Default namespace for operators (both regions)
+crc_workload_namespace: ""  # Set per server (e.g., afariasa-region-1-openstack)
+
+# OpenStack Deployment Configuration
+crc_openstack_password: "openstack123"
+crc_openstack_timeout: "600s"
+crc_network_isolation: true
+
+# Network Ranges Configuration (per region)
+crc_network_ranges: []
+# Example per region:
+# Region 1: ["172.17.0", "172.18.0", "172.19.0", "172.20.0"]
+# Region 2: ["172.27.0", "172.28.0", "172.29.0", "172.30.0"]
+
+# Install_yamls Make Targets
+crc_install_yamls_targets:
+  - crc_storage
+  - input
+  - openstack
+  - openstack_init  
+  - openstack_deploy
 
 # Multi-server configuration
 crc_servers: []
