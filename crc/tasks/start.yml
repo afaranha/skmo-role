@@ -22,10 +22,14 @@
   when: "'Running' not in crc_status.stdout"
   register: crc_cleanup
 
-- name: Start CRC cluster
+- name: Start CRC cluster with pull secret
   shell: |
     export PATH=$PATH:{{ crc_install_dir }}
+    {% if crc_effective_pull_secret is defined and crc_effective_pull_secret != '/dev/null' %}
+    {{ crc_install_dir }}/crc start --log-level {{ crc_log_level }} --pull-secret-file {{ crc_effective_pull_secret }}
+    {% else %}
     {{ crc_install_dir }}/crc start --log-level {{ crc_log_level }}
+    {% endif %}
   environment:
     HOME: "/home/{{ crc_user }}"
   become_user: "{{ crc_user }}"

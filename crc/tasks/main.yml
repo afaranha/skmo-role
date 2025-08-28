@@ -6,17 +6,31 @@
       include_tasks: validate.yml
       run_once: true
 
+    - name: Check current CRC status
+      include_tasks: check_status.yml
+
     - name: Setup system prerequisites
       include_tasks: prerequisites.yml
+      when: not skip_crc_setup | default(false)
+
+    - name: Handle pull secret
+      include_tasks: pull_secret.yml
 
     - name: Install CRC binary
       include_tasks: install.yml
+      when: not skip_crc_install | default(false)
 
     - name: Configure CRC
       include_tasks: configure.yml
+      when: not skip_crc_setup | default(false)
+
+    - name: Setup CRC environment
+      include_tasks: setup.yml
+      when: not skip_crc_setup | default(false)
 
     - name: Start CRC cluster
       include_tasks: start.yml
+      when: not skip_crc_start | default(false)
 
     - name: Deploy OpenStack (if enabled)
       include_tasks: openstack.yml

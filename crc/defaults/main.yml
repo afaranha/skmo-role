@@ -93,8 +93,10 @@ crc_setup_sudoers: true
 crc_configure_firewall: true
 crc_validate_deployment: true
 
-# Advanced Configuration
-crc_pull_secret_path: ""  # Path to pull secret file (optional)
+# Advanced Configuration  
+crc_pull_secret_path: "/root/ai-workspace/pull-secret.txt"  # Path to pull secret file in ai-workspace
+crc_pull_secret_dest: "/home/{{ crc_user }}/pull-secret.txt"  # Destination on target servers
+crc_skip_if_running: true  # Skip CRC setup/start if already running
 crc_additional_config: {}
 # Example:
 # crc_additional_config:

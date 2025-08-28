@@ -12,15 +12,24 @@
   become_user: "{{ crc_user }}"
   become: yes
 
-- name: Configure CRC pull secret (if provided)
+- name: Configure CRC pull secret (use copied secret or /dev/null)
   shell: |
     export PATH=$PATH:{{ crc_install_dir }}
-    {{ crc_install_dir }}/crc config set pull-secret-file {{ crc_pull_secret_path }}
+    {{ crc_install_dir }}/crc config set pull-secret-file {{ crc_effective_pull_secret | default('/dev/null') }}
   environment:
     HOME: "/home/{{ crc_user }}"
   become_user: "{{ crc_user }}"
   become: yes
-  when: crc_pull_secret_path != ""
+  register: pull_secret_config
+
+- name: Display pull secret configuration result
+  debug:
+    msg: |
+      {% if crc_effective_pull_secret is defined and crc_effective_pull_secret != '/dev/null' %}
+      ✅ CRC configured to use pull secret from {{ crc_effective_pull_secret }}
+      {% else %}
+      ⚠️  CRC configured to use /dev/null (no pull secret) - some features may be limited
+      {% endif %}
 
 - name: Apply additional CRC configuration
   shell: |
@@ -47,19 +56,3 @@
 - name: Display CRC configuration
   debug:
     msg: "{{ crc_config_output.stdout_lines }}"
-
-- name: Setup CRC (prepare environment)
-  shell: |
-    export PATH=$PATH:{{ crc_install_dir }}
-    {{ crc_install_dir }}/crc setup
-  environment:
-    HOME: "/home/{{ crc_user }}"
-  become_user: "{{ crc_user }}"
-  become: yes
-  async: "{{ crc_setup_timeout }}"
-  poll: 30
-  register: crc_setup_result
-
-- name: Display CRC setup result
-  debug:
-    msg: "CRC setup completed: {{ crc_setup_result.stdout }}"
