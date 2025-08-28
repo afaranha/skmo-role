@@ -21,9 +21,10 @@ echo ""
 # Available playbooks
 if [ "$1" = "--list" ]; then
     echo "Available playbooks:"
-    echo "  deploy-multi-server.yml   - Deploy CRC + OpenStack on multiple servers"
-    echo "  deploy-single-server.yml  - Deploy CRC + OpenStack on single server"
-    echo "  deploy-crc-only.yml       - Deploy CRC only (no OpenStack)"
+    echo "  deploy-multi-server.yml      - Deploy CRC + OpenStack on multiple servers"
+    echo "  deploy-single-server.yml     - Deploy CRC + OpenStack on single server"
+    echo "  deploy-crc-only.yml          - Deploy CRC only (no OpenStack)"
+    echo "  deploy-advanced-openstack.yml - Deploy CRC + Advanced OpenStack (Enterprise)"
     echo ""
     echo "Usage: $0 [playbook-name]"
     exit 0

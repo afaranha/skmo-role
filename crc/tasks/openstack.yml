@@ -2,6 +2,14 @@
 # Enhanced OpenStack deployment using install_yamls repository
 # Following the official documentation at https://github.com/openstack-k8s-operators/install_yamls
 
+# Choose deployment method based on configuration
+- name: Include advanced deployment
+  include_tasks: openstack_advanced.yml
+  when: crc_use_advanced_deployment | default(false) | bool
+
+- name: Standard OpenStack deployment
+  block:
+
 - name: Set OpenStack deployment variables
   set_fact:
     install_yamls_path: "{{ crc_openstack_dir }}/install_yamls"
@@ -566,3 +574,5 @@
       {% if not is_region_zero %}
       🔗 **Multi-Region Note:** This is a workload region. Configure SKMO networking to connect to Region Zero.
       {% endif %}
+
+  when: not (crc_use_advanced_deployment | default(false) | bool)

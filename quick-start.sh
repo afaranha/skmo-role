@@ -19,12 +19,14 @@ show_options() {
     echo "1. multi-server    - Deploy CRC + OpenStack on multiple servers"
     echo "2. single-server   - Deploy CRC + OpenStack on single server"
     echo "3. crc-only        - Deploy CRC only (no OpenStack)"
-    echo "4. complete        - Deploy CRC + OpenStack + SKMO networking"
+    echo "4. advanced        - Deploy CRC + Advanced OpenStack (Enterprise-grade)"
+    echo "5. complete        - Deploy CRC + OpenStack + SKMO networking"
     echo ""
     echo "Usage:"
     echo "  ./quick-start.sh multi-server"
     echo "  ./quick-start.sh single-server"
     echo "  ./quick-start.sh crc-only"
+    echo "  ./quick-start.sh advanced"
     echo "  ./quick-start.sh complete"
     echo ""
 }
@@ -47,6 +49,11 @@ case "$DEPLOYMENT_TYPE" in
         echo "🎯 Deploying CRC only (no OpenStack)..."
         cd examples/crc-deployment
         ./deploy.sh deploy-crc-only.yml
+        ;;
+    "advanced")
+        echo "🎯 Deploying CRC + Advanced OpenStack (Enterprise-grade)..."
+        cd examples/crc-deployment
+        ./deploy.sh deploy-advanced-openstack.yml
         ;;
     "complete")
         echo "🎯 Deploying complete CRC + OpenStack + SKMO setup..."

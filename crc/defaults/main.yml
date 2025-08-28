@@ -44,6 +44,11 @@ crc_install_yamls_targets:
   - openstack_init  
   - openstack_deploy
 
+# Advanced deployment options
+crc_use_advanced_deployment: false  # Set to true for enterprise-grade deployment with enhanced monitoring
+crc_openstack_release: "antelope"   # OpenStack release version
+crc_storage_class: "local-storage"  # Storage class for OpenStack
+
 # Multi-server configuration
 crc_servers: []
 # Example:
