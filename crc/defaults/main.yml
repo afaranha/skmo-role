@@ -92,6 +92,7 @@ crc_create_access_scripts: true
 crc_setup_sudoers: true
 crc_configure_firewall: true
 crc_validate_deployment: true
+crc_use_install_yamls_setup: true  # Use install_yamls 'make crc' instead of direct CRC commands
 
 # Advanced Configuration  
 crc_pull_secret_path: "/root/ai-workspace/pull-secret.txt"  # Path to pull secret file in ai-workspace

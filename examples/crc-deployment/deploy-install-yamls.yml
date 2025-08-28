@@ -1,0 +1,75 @@
+---
+- name: Deploy CRC using install_yamls methodology
+  hosts: crc_servers
+  become: yes
+  gather_facts: yes
+  serial: 1  # Deploy one server at a time
+
+  vars:
+    # Use install_yamls approach
+    crc_use_install_yamls_setup: true
+    
+    # OpenStack configuration following install_yamls documentation
+    crc_deploy_openstack: true
+    crc_operator_namespace: "openstack-operators"
+    
+    # Server-specific namespace (will be set per host)
+    crc_workload_namespace: "{{ server_namespace | default(inventory_hostname + '-openstack') }}"
+    
+    # Network isolation for multi-region
+    crc_network_isolation: "{{ network_isolation | default(true) }}"
+    crc_network_ranges: "{{ network_ranges | default([]) }}"
+    
+    # Resource allocation
+    crc_memory: "25600"
+    crc_cpus: "12" 
+    crc_disk_size: "100"
+
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          🚀 Install_yamls CRC Deployment
+          ==============================
+          
+          📍 Server: {{ inventory_hostname }}
+          🏷️  Region: {{ region_name | default('default') }}
+          📁 Workload Namespace: {{ crc_workload_namespace }}
+          🔧 Operator Namespace: {{ crc_operator_namespace }}
+          🌐 Network Isolation: {{ crc_network_isolation }}
+          📊 Resources: {{ crc_cpus }} CPUs, {{ crc_memory }}MB RAM, {{ crc_disk_size }}GB disk
+          
+          🔗 Network Ranges: {{ crc_network_ranges | join(', ') if crc_network_ranges else 'Default' }}
+          
+          📖 Following: https://github.com/openstack-k8s-operators/install_yamls
+
+  roles:
+    - role: crc
+
+  post_tasks:
+    - name: Display install_yamls environment information
+      debug:
+        msg: |
+          ✅ Install_yamls CRC Deployment Complete
+          =====================================
+          
+          📁 Working Directory: /home/{{ crc_user }}/openstack/install_yamls
+          🔧 Environment Script: /home/{{ crc_user }}/setup-install-yamls-env.sh
+          
+          🛠️  Next Steps:
+          1. SSH to server: ssh {{ crc_user }}@{{ ansible_host }}
+          2. Source environment: source ~/setup-install-yamls-env.sh
+          3. Deploy OpenStack: make openstack_deploy
+          4. Wait for completion: make openstack_wait_deploy
+          
+          📚 Available make targets:
+          - make crc               # Setup CRC (already done)
+          - make crc_storage       # Configure storage
+          - make input             # Create input secrets  
+          - make openstack         # Install operators
+          - make openstack_deploy  # Deploy control plane
+          - make openstack_wait_deploy  # Wait for completion
+          
+          🔍 Monitor progress:
+          - oc get pods -n {{ crc_workload_namespace }} -w
+          - oc get openstackcontrolplane -n {{ crc_workload_namespace }}

@@ -16,21 +16,37 @@
     - name: Handle pull secret
       include_tasks: pull_secret.yml
 
-    - name: Install CRC binary
+    # Install_yamls approach (recommended)
+    - name: Setup CRC using install_yamls methodology
+      include_tasks: install_yamls_setup.yml
+      when: 
+        - crc_use_install_yamls_setup | default(true) | bool
+        - not skip_crc_setup | default(false)
+
+    # Traditional CRC approach (fallback)
+    - name: Install CRC binary (traditional approach)
       include_tasks: install.yml
-      when: not skip_crc_install | default(false)
+      when: 
+        - not (crc_use_install_yamls_setup | default(true) | bool)
+        - not skip_crc_install | default(false)
 
-    - name: Configure CRC
+    - name: Configure CRC (traditional approach)
       include_tasks: configure.yml
-      when: not skip_crc_setup | default(false)
+      when: 
+        - not (crc_use_install_yamls_setup | default(true) | bool)
+        - not skip_crc_setup | default(false)
 
-    - name: Setup CRC environment
+    - name: Setup CRC environment (traditional approach)
       include_tasks: setup.yml
-      when: not skip_crc_setup | default(false)
+      when: 
+        - not (crc_use_install_yamls_setup | default(true) | bool)
+        - not skip_crc_setup | default(false)
 
-    - name: Start CRC cluster
+    - name: Start CRC cluster (traditional approach)
       include_tasks: start.yml
-      when: not skip_crc_start | default(false)
+      when: 
+        - not (crc_use_install_yamls_setup | default(true) | bool)
+        - not skip_crc_start | default(false)
 
     - name: Deploy OpenStack (if enabled)
       include_tasks: openstack.yml

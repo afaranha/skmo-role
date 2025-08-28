@@ -9,8 +9,7 @@
 
 - name: Standard OpenStack deployment
   block:
-
-- name: Set OpenStack deployment variables
+    - name: Set OpenStack deployment variables
   set_fact:
     install_yamls_path: "{{ crc_openstack_dir }}/install_yamls"
     openstack_namespace: "{{ crc_workload_namespace | default('openstack') }}"

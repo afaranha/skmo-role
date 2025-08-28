@@ -33,7 +33,7 @@
       - Tenant: {{ network_config.tenant_prefix }}.x
       - Storage Mgmt: {{ network_config.storagemgmt_prefix }}.x
 
-# Phase 1: Repository and environment setup
+# Phase 1: Repository and environment setup using install_yamls methodology
 - name: Clone install_yamls repository
   git:
     repo: "{{ crc_openstack_repo }}"
@@ -43,14 +43,31 @@
   become_user: "{{ crc_user }}"
   become: yes
 
+- name: Use install_yamls to setup CRC with proper pull secret
+  shell: |
+    cd {{ install_yamls_path }}
+    export PULL_SECRET=$HOME/pull-secret.txt
+    echo "Setting up CRC using install_yamls with pull secret..."
+    make crc
+    echo "CRC setup completed successfully"
+  environment:
+    HOME: "/home/{{ crc_user }}"
+    PATH: "{{ ansible_env.PATH }}:{{ crc_install_dir }}"
+  become_user: "{{ crc_user }}"
+  become: yes
+  register: crc_setup_result
+  async: 1800  # 30 minutes timeout
+  poll: 60
+
 - name: Setup oc environment and authenticate
   shell: |
-    export PATH=$PATH:{{ crc_install_dir }}
-    eval $({{ crc_install_dir }}/crc oc-env)
-    oc login -u kubeadmin -p {{ crc_kubeadmin_password }} https://api.crc.testing:6443
+    cd {{ install_yamls_path }}
+    eval $(crc oc-env)
+    oc login -u kubeadmin -p $(crc console --credentials | grep kubeadmin | grep -oP 'password: \K.*')
     oc whoami
   environment:
     HOME: "/home/{{ crc_user }}"
+    PATH: "{{ ansible_env.PATH }}:{{ crc_install_dir }}"
   become_user: "{{ crc_user }}"
   become: yes
   register: oc_auth
