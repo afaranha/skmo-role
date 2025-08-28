@@ -1,0 +1,104 @@
+---
+# Cleanup duplicate CRC installations
+# We want to keep only the install_yamls CRC (typically in ~/bin/crc)
+# and remove the manual installation (typically in ~/crc/crc)
+
+- name: Check for duplicate CRC installations
+  stat:
+    path: "{{ item }}"
+  register: crc_installations
+  loop:
+    - "/home/{{ crc_user }}/bin/crc"
+    - "/home/{{ crc_user }}/crc/crc"
+  tags: check_crc_duplicates
+
+- name: Display current CRC installations
+  debug:
+    msg: |
+      🔍 CRC Installation Analysis:
+      
+      ~/bin/crc exists: {{ crc_installations.results[0].stat.exists }}
+      ~/crc/crc exists: {{ crc_installations.results[1].stat.exists }}
+      
+      {% if crc_installations.results[0].stat.exists and crc_installations.results[1].stat.exists -%}
+      ⚠️  DUPLICATE INSTALLATIONS DETECTED!
+      - install_yamls CRC: /home/{{ crc_user }}/bin/crc
+      - Manual CRC: /home/{{ crc_user }}/crc/crc
+      
+      Will remove the manual installation to avoid conflicts.
+      {%- elif crc_installations.results[0].stat.exists -%}
+      ✅ Only install_yamls CRC found: /home/{{ crc_user }}/bin/crc
+      {%- elif crc_installations.results[1].stat.exists -%}
+      ⚠️  Only manual CRC found: /home/{{ crc_user }}/crc/crc
+      This should be replaced with install_yamls installation.
+      {%- else -%}
+      ❌ No CRC installations found.
+      {%- endif %}
+  tags: check_crc_duplicates
+
+- name: Stop CRC if running (before cleanup)
+  shell: |
+    # Try to stop CRC using whichever version is available
+    if [ -f "/home/{{ crc_user }}/bin/crc" ]; then
+      "/home/{{ crc_user }}/bin/crc" stop || true
+    elif [ -f "/home/{{ crc_user }}/crc/crc" ]; then
+      "/home/{{ crc_user }}/crc/crc" stop || true
+    fi
+  become_user: "{{ crc_user }}"
+  when: crc_installations.results[0].stat.exists or crc_installations.results[1].stat.exists
+  ignore_errors: true
+  tags: cleanup_duplicates
+
+- name: Remove manual CRC installation directory
+  file:
+    path: "/home/{{ crc_user }}/crc"
+    state: absent
+  become_user: "{{ crc_user }}"
+  when: crc_installations.results[1].stat.exists
+  tags: cleanup_duplicates
+
+- name: Remove manual CRC from PATH
+  lineinfile:
+    path: "/home/{{ crc_user }}/.bashrc"
+    regexp: '.*PATH.*crc.*'
+    state: absent
+  become_user: "{{ crc_user }}"
+  when: crc_installations.results[1].stat.exists
+  tags: cleanup_duplicates
+
+- name: Ensure install_yamls CRC is in PATH
+  lineinfile:
+    path: "/home/{{ crc_user }}/.bashrc"
+    line: 'export PATH="/home/{{ crc_user }}/bin:$PATH"'
+    insertafter: EOF
+    create: yes
+  become_user: "{{ crc_user }}"
+  when: crc_installations.results[0].stat.exists
+  tags: cleanup_duplicates
+
+- name: Verify final CRC installation
+  shell: |
+    source /home/{{ crc_user }}/.bashrc
+    which crc
+    crc version || echo "CRC not properly configured yet"
+  become_user: "{{ crc_user }}"
+  register: final_crc_check
+  tags: verify_cleanup
+
+- name: Display cleanup results
+  debug:
+    msg: |
+      🎯 CRC Cleanup Results:
+      
+      Current CRC location: {{ final_crc_check.stdout_lines[0] if final_crc_check.stdout_lines else 'Not found' }}
+      
+      {% if 'bin/crc' in (final_crc_check.stdout_lines[0] if final_crc_check.stdout_lines else '') %}
+      ✅ Successfully using install_yamls CRC installation
+      {% else %}
+      ❌ CRC installation needs attention
+      {% endif %}
+      
+      Next steps:
+      - Run install_yamls devsetup to ensure proper CRC setup
+      - Use 'make crc' in install_yamls/devsetup/ directory
+  tags: verify_cleanup

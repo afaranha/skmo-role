@@ -10,14 +10,14 @@
 - name: Standard OpenStack deployment
   block:
     - name: Set OpenStack deployment variables
-  set_fact:
-    install_yamls_path: "{{ crc_openstack_dir }}/install_yamls"
-    openstack_namespace: "{{ crc_workload_namespace | default('openstack') }}"
-    operator_namespace: "{{ crc_operator_namespace }}"
-    openstack_password: "{{ crc_openstack_password }}"
-    current_server: "{{ inventory_hostname }}"
-    region_name: "{{ region_name | default('region-1') }}"
-    is_region_zero: "{{ inventory_hostname == groups['crc_servers'][0] if groups is defined else true }}"
+      set_fact:
+        install_yamls_path: "{{ crc_openstack_dir }}/install_yamls"
+        openstack_namespace: "{{ crc_workload_namespace | default('openstack') }}"
+        operator_namespace: "{{ crc_operator_namespace }}"
+        openstack_password: "{{ crc_openstack_password }}"
+        current_server: "{{ inventory_hostname }}"
+        region_name: "{{ region_name | default('region-1') }}"
+        is_region_zero: "{{ inventory_hostname == groups['crc_servers'][0] if groups is defined else true }}"
 
 - name: Display OpenStack deployment plan
   debug:
@@ -44,7 +44,7 @@
   shell: |
     export PATH=$PATH:{{ crc_install_dir }}
     eval $({{ crc_install_dir }}/crc oc-env)
-    oc login -u kubeadmin -p {{ crc_kubeadmin_password }} https://api.crc.testing:6443
+    oc login -u kubeadmin -p {{ crc_kubeadmin_password }} https://api.crc.testing:6443 --insecure-skip-tls-verify
   environment:
     HOME: "/home/{{ crc_user }}"
   become_user: "{{ crc_user }}"
@@ -573,5 +573,4 @@
       {% if not is_region_zero %}
       🔗 **Multi-Region Note:** This is a workload region. Configure SKMO networking to connect to Region Zero.
       {% endif %}
-
   when: not (crc_use_advanced_deployment | default(false) | bool)
