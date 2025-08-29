@@ -12,6 +12,50 @@
       4. 📦 make openstack     (Install OpenStack operators)
       5. 🚀 make openstack_deploy (Deploy OpenStack)
 
+- name: Check if CRC is already deployed
+  shell: |
+    export PATH="{{ crc_bin_path }}:$PATH"
+    crc status
+  become_user: "{{ crc_user }}"
+  register: crc_initial_status
+  ignore_errors: true
+  tags: [check_crc, make_crc]
+
+- name: Display current CRC status
+  debug:
+    msg: |
+      📊 Current CRC Status for {{ inventory_hostname }}:
+      {% if crc_initial_status.rc == 0 %}
+      {{ crc_initial_status.stdout }}
+      {% else %}
+      CRC is not installed or not accessible
+      Return code: {{ crc_initial_status.rc }}
+      Error: {{ crc_initial_status.stderr | default('Unknown error') }}
+      {% endif %}
+  tags: [check_crc, make_crc]
+
+- name: Determine if CRC installation is needed
+  set_fact:
+    crc_needs_install: >-
+      {{
+        (crc_initial_status.rc != 0 or 'Running' not in crc_initial_status.stdout) or
+        not (crc_skip_if_running | bool)
+      }}
+  tags: [check_crc, make_crc]
+
+- name: Display installation decision
+  debug:
+    msg: |
+      🔍 CRC Installation Decision for {{ inventory_hostname }}:
+      {% if not (crc_skip_if_running | bool) %}
+      🔄 Force installation enabled (crc_skip_if_running: false)
+      {% elif crc_initial_status.rc != 0 or 'Running' not in crc_initial_status.stdout %}
+      ⚠️  CRC installation/start needed
+      {% else %}
+      ✅ CRC is already running - skipping installation step
+      {% endif %}
+  tags: [check_crc, make_crc]
+
 - name: Step 1 - Install and start CRC using install_yamls
   shell: |
     cd {{ crc_devsetup_path }}
@@ -24,12 +68,13 @@
   become_user: "{{ crc_user }}"
   register: make_crc_result
   timeout: "{{ crc_install_timeout }}"
-  when: crc_run_install | bool
+  when: crc_run_install | bool and crc_needs_install | bool
   tags: make_crc
 
 - name: Display make crc results
   debug:
     msg: |
+      {% if crc_needs_install %}
       ✅ Step 1 Complete - make crc results for {{ inventory_hostname }}:
       
       {{ make_crc_result.stdout | default('No stdout') }}
@@ -37,6 +82,9 @@
       {% if make_crc_result.stderr %}
       Stderr:
       {{ make_crc_result.stderr }}
+      {% endif %}
+      {% else %}
+      ✅ Step 1 Skipped - CRC was already running on {{ inventory_hostname }}
       {% endif %}
   when: crc_run_install | bool
   tags: make_crc
@@ -95,7 +143,7 @@
       {{ crc_status.stdout }}
       
       ✅ Completed Steps:
-      {% if crc_run_install %}1. ✅ make crc - CRC installed and running{% endif %}
+      {% if crc_run_install and crc_needs_install %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
       {% if crc_run_input %}3. ✅ make input - Secrets created{% endif %}
       {% if crc_run_openstack %}4. ✅ make openstack - Operators installed{% endif %}

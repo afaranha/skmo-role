@@ -50,7 +50,19 @@ crc_run_install: true
 crc_run_storage: true
 crc_run_input: true
 crc_run_openstack: true
+
+# Skip installation if CRC is already running
+crc_skip_if_running: true
 ```
+
+## Smart CRC Detection
+
+The role automatically checks if CRC is already deployed and running before attempting installation. This prevents unnecessary reinstallation and saves time:
+
+- **Automatic Detection**: Checks CRC status before installation
+- **Smart Skipping**: Skips `make crc` if CRC is already running
+- **Configurable**: Set `crc_skip_if_running: false` to force reinstallation
+- **Detailed Logging**: Shows current CRC status and installation decisions
 
 ## Dependencies
 
@@ -104,11 +116,26 @@ None
         crc_run_openstack: false
 ```
 
+### Force CRC Reinstallation
+
+```yaml
+---
+- name: Force CRC reinstallation even if running
+  hosts: crc_servers
+  become: false
+  gather_facts: true
+  roles:
+    - role: crc
+      vars:
+        crc_skip_if_running: false  # Force reinstallation
+```
+
 ## Tags
 
 The role supports the following tags for selective execution:
 
-- `make_crc` - CRC installation step
+- `check_crc` - Check current CRC status
+- `make_crc` - CRC installation step (includes check)
 - `verify_crc` - CRC status verification
 - `make_crc_storage` - Storage configuration step  
 - `make_input` - Input secrets creation step
@@ -118,7 +145,10 @@ The role supports the following tags for selective execution:
 ### Example Tag Usage
 
 ```bash
-# Run only CRC installation
+# Check CRC status only
+ansible-playbook playbook.yml --tags "check_crc"
+
+# Run only CRC installation (includes status check)
 ansible-playbook playbook.yml --tags "make_crc"
 
 # Run storage and input steps only

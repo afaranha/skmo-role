@@ -20,3 +20,6 @@ crc_run_install: true
 crc_run_storage: true
 crc_run_input: true
 crc_run_openstack: true
+
+# Skip installation if CRC is already running
+crc_skip_if_running: true
