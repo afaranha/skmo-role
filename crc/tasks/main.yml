@@ -2,15 +2,13 @@
 - name: Display install_yamls workflow plan
   debug:
     msg: |
-      🚀 Install_yamls Official Workflow for {{ inventory_hostname }}
-      ================================================================
+      🚀 CRC Infrastructure Workflow for {{ inventory_hostname }}
+      =========================================================
       
-      Following the README.md exactly:
+      CRC infrastructure setup (use openstack role for operators):
       1. 🏗️  make crc          (Install and start CRC)
       2. 🗄️  make crc_storage  (Configure persistent storage)
       3. 🔐 make input         (Create input secrets)
-      4. 📦 make openstack     (Install OpenStack operators)
-      5. 🚀 make openstack_deploy (Deploy OpenStack)
 
 - name: Check if CRC is already deployed
   shell: |
@@ -121,23 +119,11 @@
   when: crc_run_input | bool
   tags: make_input
 
-- name: Step 4 - Install OpenStack operators (DEPRECATED - use openstack role)
-  shell: |
-    cd {{ crc_install_yamls_path }}
-    export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env)
-    make openstack
-  become_user: "{{ crc_user }}"
-  register: make_openstack_result
-  timeout: "{{ crc_openstack_timeout }}"
-  when: crc_run_openstack | bool
-  tags: make_openstack
-
 - name: Display final workflow status
   debug:
     msg: |
-      🎉 Install_yamls Workflow Complete for {{ inventory_hostname }}!
-      =====================================================================
+      🎉 CRC Infrastructure Setup Complete for {{ inventory_hostname }}!
+      ================================================================
       
       📊 CRC Status:
       {{ crc_status.stdout }}
@@ -146,12 +132,11 @@
       {% if crc_run_install and crc_needs_install %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
       {% if crc_run_input %}3. ✅ make input - Secrets created{% endif %}
-      {% if crc_run_openstack %}4. ⚠️  make openstack - DEPRECATED (use openstack role){% endif %}
       
       🚀 Ready for OpenStack operators installation:
       ```bash
       # Use the openstack role for operators installation
-      ansible-playbook playbook.yml -t openstack_operators
+      ansible-playbook playbook.yml --tags openstack_operators
       
       # Or manually:
       ssh {{ crc_user }}@{{ ansible_default_ipv4.address }}

@@ -50,7 +50,6 @@ crc_openstack_timeout: 1800 # 30 minutes
 crc_run_install: true
 crc_run_storage: true
 crc_run_input: true
-crc_run_openstack: false  # DEPRECATED - use openstack role instead
 
 # Skip installation if CRC is already running
 crc_skip_if_running: true
@@ -97,7 +96,6 @@ None
         crc_cpus: 16
         crc_memory: 32768
         crc_disk: 150
-        crc_run_openstack: false  # Only install CRC, skip OpenStack
 ```
 
 ### Selective Step Execution
@@ -114,7 +112,6 @@ None
         crc_run_install: false
         crc_run_storage: true
         crc_run_input: true
-        crc_run_openstack: false
 ```
 
 ### Force CRC Reinstallation
@@ -153,7 +150,6 @@ The role supports the following tags for selective execution:
 - `verify_crc` - CRC status verification
 - `make_crc_storage` - Storage configuration step  
 - `make_input` - Input secrets creation step
-- `make_openstack` - OpenStack operators installation step
 - `summary` - Final status display
 
 ### Example Tag Usage

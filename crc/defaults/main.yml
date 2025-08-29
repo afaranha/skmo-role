@@ -13,13 +13,11 @@ crc_bin_path: "/home/{{ crc_user }}/bin"
 crc_install_timeout: 2400  # 40 minutes
 crc_storage_timeout: 300   # 5 minutes
 crc_input_timeout: 300     # 5 minutes
-crc_openstack_timeout: 1800 # 30 minutes
 
 # Steps to execute
 crc_run_install: true
 crc_run_storage: true
 crc_run_input: true
-crc_run_openstack: false  # Moved to separate openstack role
 
 # Skip installation if CRC is already running
 crc_skip_if_running: true
