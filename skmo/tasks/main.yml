@@ -5,14 +5,6 @@
 - name: Validate inputs
   ansible.builtin.include_tasks: validate.yml
 
-- name: Perform server-aware setup for each namespace
-  ansible.builtin.include_tasks: server_aware_setup.yml
-  loop: "{{ skmo_namespaces }}"
-  loop_control:
-    loop_var: workload
-  when: workload.name is defined
-  tags: [server_setup]
-
 - name: Share trust: add regionZero internal CA to workload ca bundles
   ansible.builtin.include_tasks: ca_trust.yml
 
@@ -29,4 +21,4 @@
   ansible.builtin.include_tasks: horizon.yml
 
 - name: Render workload control-plane overrides
-  ansible.builtin.include_tasks: workload_overrides.yml 
+  ansible.builtin.include_tasks: workload_overrides.yml
