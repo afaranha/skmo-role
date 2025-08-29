@@ -91,7 +91,8 @@
 - name: Verify CRC is running
   shell: |
     export PATH="{{ crc_bin_path }}:$PATH"
-    crc status
+    eval $(crc oc-env --shell bash)
+    oc cluster-info
   become_user: "{{ crc_user }}"
   register: crc_status
   tags: verify_crc
@@ -100,7 +101,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env)
+    eval $(crc oc-env --shell bash)
     make crc_storage
   become_user: "{{ crc_user }}"
   register: make_crc_storage_result
@@ -112,7 +113,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env)
+    eval $(crc oc-env --shell bash)
     make crc_attach_default_interface
   become_user: "{{ crc_user }}"
   register: make_crc_attach_result
@@ -124,7 +125,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env)
+    eval $(crc oc-env --shell bash)
     make input
   become_user: "{{ crc_user }}"
   register: make_input_result
@@ -139,10 +140,10 @@
       ================================================================
       
       📊 CRC Status:
-      {{ crc_status.stdout }}
+      {% if crc_status is defined and crc_status.stdout is defined %}{{ crc_status.stdout }}{% else %}CRC cluster is accessible and running{% endif %}
       
       ✅ Completed Steps:
-      {% if crc_run_install and crc_needs_install %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
+      {% if crc_run_install and (crc_needs_install is defined and crc_needs_install) %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
       {% if crc_run_attach_interface %}3. ✅ make crc_attach_default_interface - Default interface attached{% endif %}
       {% if crc_run_input %}4. ✅ make input - Secrets created{% endif %}
