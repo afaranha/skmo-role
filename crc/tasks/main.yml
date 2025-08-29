@@ -91,7 +91,7 @@
 - name: Verify CRC is running
   shell: |
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     oc cluster-info
   become_user: "{{ crc_user }}"
   register: crc_status
@@ -101,7 +101,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     make crc_storage
   become_user: "{{ crc_user }}"
   register: make_crc_storage_result
@@ -113,7 +113,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     make crc_attach_default_interface
   become_user: "{{ crc_user }}"
   register: make_crc_attach_result
@@ -125,7 +125,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     make input
   become_user: "{{ crc_user }}"
   register: make_input_result

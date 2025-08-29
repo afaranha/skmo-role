@@ -86,7 +86,7 @@
   shell: |
     cd {{ openstack_install_yamls_path }}
     export PATH="{{ openstack_bin_path }}:$PATH"
-    eval $(crc oc-env)
+      eval $(crc oc-env)
     make openstack_deploy
   become_user: "{{ openstack_user }}"
   register: openstack_deploy_result
