@@ -19,7 +19,7 @@
 
 - name: Step 0 - Download required tools (if needed)
   shell: |
-    cd {{ openstack_install_yamls_path }}
+    cd {{ openstack_install_yamls_path }}/devsetup
     export PATH="{{ openstack_bin_path }}:$PATH"
     make download_tools
   become_user: "{{ openstack_user }}"

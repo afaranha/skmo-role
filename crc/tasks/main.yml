@@ -14,7 +14,7 @@
 
 - name: Step 0 - Download required tools
   shell: |
-    cd {{ crc_install_yamls_path }}
+    cd {{ crc_install_yamls_path }}/devsetup
     export PATH="{{ crc_bin_path }}:$PATH"
     make download_tools
   become_user: "{{ crc_user }}"
