@@ -1,0 +1,30 @@
+---
+galaxy_info:
+  author: SKMO Team
+  description: Ansible role for deploying CRC using install_yamls methodology
+  company: Red Hat
+  
+  license: Apache-2.0
+  
+  min_ansible_version: '2.9'
+  
+  platforms:
+    - name: Fedora
+      versions:
+        - '38'
+        - '39'
+        - '40'
+        - '41'
+    - name: EL
+      versions:
+        - '8'
+        - '9'
+  
+  galaxy_tags:
+    - openstack
+    - crc
+    - openshift
+    - containers
+    - development
+
+dependencies: []

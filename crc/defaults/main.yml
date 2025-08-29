@@ -1,0 +1,22 @@
+---
+# Default variables for CRC role
+crc_user: fedora
+crc_cpus: 12
+crc_memory: 25600
+crc_disk: 100
+crc_install_yamls_path: "/home/{{ crc_user }}/openstack/install_yamls"
+crc_devsetup_path: "{{ crc_install_yamls_path }}/devsetup"
+crc_pull_secret_path: "/home/{{ crc_user }}/pull-secret.txt"
+crc_bin_path: "/home/{{ crc_user }}/bin"
+
+# Timeout settings (in seconds)
+crc_install_timeout: 2400  # 40 minutes
+crc_storage_timeout: 300   # 5 minutes
+crc_input_timeout: 300     # 5 minutes
+crc_openstack_timeout: 1800 # 30 minutes
+
+# Steps to execute
+crc_run_install: true
+crc_run_storage: true
+crc_run_input: true
+crc_run_openstack: true

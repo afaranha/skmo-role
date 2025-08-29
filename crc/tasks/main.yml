@@ -1,0 +1,113 @@
+---
+- name: Display install_yamls workflow plan
+  debug:
+    msg: |
+      🚀 Install_yamls Official Workflow for {{ inventory_hostname }}
+      ================================================================
+      
+      Following the README.md exactly:
+      1. 🏗️  make crc          (Install and start CRC)
+      2. 🗄️  make crc_storage  (Configure persistent storage)
+      3. 🔐 make input         (Create input secrets)
+      4. 📦 make openstack     (Install OpenStack operators)
+      5. 🚀 make openstack_deploy (Deploy OpenStack)
+
+- name: Step 1 - Install and start CRC using install_yamls
+  shell: |
+    cd {{ crc_devsetup_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    export PULL_SECRET={{ crc_pull_secret_path }}
+    export CPUS={{ crc_cpus }}
+    export MEMORY={{ crc_memory }}
+    export DISK={{ crc_disk }}
+    make crc
+  become_user: "{{ crc_user }}"
+  register: make_crc_result
+  timeout: "{{ crc_install_timeout }}"
+  when: crc_run_install | bool
+  tags: make_crc
+
+- name: Display make crc results
+  debug:
+    msg: |
+      ✅ Step 1 Complete - make crc results for {{ inventory_hostname }}:
+      
+      {{ make_crc_result.stdout | default('No stdout') }}
+      
+      {% if make_crc_result.stderr %}
+      Stderr:
+      {{ make_crc_result.stderr }}
+      {% endif %}
+  when: crc_run_install | bool
+  tags: make_crc
+
+- name: Verify CRC is running
+  shell: |
+    export PATH="{{ crc_bin_path }}:$PATH"
+    crc status
+  become_user: "{{ crc_user }}"
+  register: crc_status
+  tags: verify_crc
+
+- name: Step 2 - Configure CRC storage
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make crc_storage
+  become_user: "{{ crc_user }}"
+  register: make_crc_storage_result
+  timeout: "{{ crc_storage_timeout }}"
+  when: crc_run_storage | bool
+  tags: make_crc_storage
+
+- name: Step 3 - Create input secrets
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make input
+  become_user: "{{ crc_user }}"
+  register: make_input_result
+  timeout: "{{ crc_input_timeout }}"
+  when: crc_run_input | bool
+  tags: make_input
+
+- name: Step 4 - Install OpenStack operators
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make openstack
+  become_user: "{{ crc_user }}"
+  register: make_openstack_result
+  timeout: "{{ crc_openstack_timeout }}"
+  when: crc_run_openstack | bool
+  tags: make_openstack
+
+- name: Display final workflow status
+  debug:
+    msg: |
+      🎉 Install_yamls Workflow Complete for {{ inventory_hostname }}!
+      =====================================================================
+      
+      📊 CRC Status:
+      {{ crc_status.stdout }}
+      
+      ✅ Completed Steps:
+      {% if crc_run_install %}1. ✅ make crc - CRC installed and running{% endif %}
+      {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
+      {% if crc_run_input %}3. ✅ make input - Secrets created{% endif %}
+      {% if crc_run_openstack %}4. ✅ make openstack - Operators installed{% endif %}
+      
+      🚀 Ready for OpenStack deployment:
+      ```bash
+      ssh {{ crc_user }}@{{ ansible_default_ipv4.address }}
+      cd ~/openstack/install_yamls
+      export PATH="{{ crc_bin_path }}:$PATH"
+      eval $(crc oc-env)
+      make openstack_deploy  # Deploy OpenStack control plane
+      ```
+      
+      🌐 Region: {{ inventory_hostname }}
+  tags: summary
