@@ -1,10 +1,8 @@
-# SKMO (Skupper Multi-OpenStack) Ansible Roles
+# SKMO (Skupper Multi-OpenStack) Ansible Role
 
-This repository contains Ansible roles for deploying and managing multi-region OpenStack environments using Skupper for network connectivity.
+This repository contains an Ansible role for deploying and managing multi-region OpenStack environments using Skupper for network connectivity.
 
-## Roles
-
-### 1. SKMO Role (`skmo/`)
+## SKMO Role (`skmo/`)
 
 The main SKMO role for setting up multi-region OpenStack networking using Skupper.
 
@@ -15,56 +13,20 @@ The main SKMO role for setting up multi-region OpenStack networking using Skuppe
 - Horizon multi-region dashboard configuration
 - Workload control-plane overrides
 
-### 2. CRC Role (`crc/`)
+## Simple Install_yamls Workflow
 
-**NEW**: Comprehensive role for deploying CodeReady Containers (CRC) with optional OpenStack across multiple servers.
-
-**Features:**
-- ✅ Multi-server CRC deployment
-- ✅ Automated OpenStack deployment using install_yamls
-- ✅ Network isolation for multi-region setups
-- ✅ Resource optimization and validation
-- ✅ Generated access and management scripts
-- ✅ Integration-ready for SKMO networking
-
-## Quick Start
-
-### Deploy CRC Infrastructure + OpenStack
+This repository also provides a simple, direct workflow for setting up CRC and OpenStack using the official install_yamls methodology:
 
 ```bash
-# Multi-server deployment
 cd examples/crc-deployment
-./deploy.sh deploy-multi-server.yml
-
-# Single server deployment  
-./deploy.sh deploy-single-server.yml
-
-# CRC only (no OpenStack)
-./deploy.sh deploy-crc-only.yml
+ansible-playbook install-yamls-workflow.yml -i inventory.yml
 ```
 
-### Setup SKMO Multi-Region Networking
-
-```bash
-cd examples/afariasa-deployment
-ansible-playbook playbook.yml
-```
-
-## Complete Multi-Region Setup
-
-For a complete multi-region OpenStack deployment with networking:
-
-1. **Deploy CRC + OpenStack Infrastructure**
-   ```bash
-   cd examples/crc-deployment
-   ./deploy.sh deploy-multi-server.yml
-   ```
-
-2. **Configure SKMO Networking**
-   ```bash
-   cd examples/afariasa-deployment
-   ansible-playbook playbook.yml
-   ```
+This workflow follows the install_yamls documentation exactly:
+1. `make crc` - Install and start CRC
+2. `make crc_storage` - Configure persistent storage
+3. `make input` - Create input secrets
+4. `make openstack` - Install OpenStack operators
 
 ## Repository Structure
 
@@ -75,36 +37,41 @@ skmo-role/
 │   ├── templates/
 │   ├── defaults/
 │   └── ...
-├── crc/                     # CRC deployment role
-│   ├── tasks/
-│   ├── templates/
-│   ├── defaults/
-│   └── README.md
 ├── examples/
-│   ├── crc-deployment/      # CRC deployment examples
-│   │   ├── deploy-multi-server.yml
-│   │   ├── inventory.yml
-│   │   └── deploy.sh
-│   └── afariasa-deployment/ # SKMO examples
-│       ├── playbook.yml
-│       └── inventory.yml
+│   └── crc-deployment/      # Simple install_yamls workflow
+│       ├── install-yamls-workflow.yml
+│       ├── inventory.yml
+│       └── ansible.cfg
 └── README.md
 ```
 
-## Integration Example
+## Requirements
 
-Deploy both CRC infrastructure and SKMO networking in one playbook:
+- **Ansible**: 2.9+
+- **Target OS**: Fedora 38+, RHEL/CentOS 8+
+- **Resources**: Minimum 12 CPU, 25GB RAM, 100GB disk per server
+- **SSH**: Key-based authentication
+- **Prerequisites**: install_yamls repository cloned to `/home/fedora/openstack/install_yamls`
+
+## Usage
+
+### Install_yamls Workflow
+
+1. Clone install_yamls repository on target servers
+2. Configure inventory with your servers
+3. Run the workflow:
+
+```bash
+cd examples/crc-deployment
+ansible-playbook install-yamls-workflow.yml -i inventory.yml
+```
+
+### SKMO Multi-Region Setup
+
+After setting up OpenStack infrastructure, use the SKMO role for multi-region networking:
 
 ```yaml
 ---
-- name: Deploy CRC Infrastructure
-  hosts: crc_servers
-  roles:
-    - role: crc
-      vars:
-        crc_deploy_openstack: true
-        crc_operator_namespace: "openstack-operators"
-
 - name: Setup SKMO Multi-Region Networking
   hosts: crc_servers
   roles:
@@ -117,23 +84,10 @@ Deploy both CRC infrastructure and SKMO networking in one playbook:
             server_host: "{{ ansible_host }}"
 ```
 
-## Requirements
-
-- **Ansible**: 2.9+
-- **Target OS**: Fedora 38+, RHEL/CentOS 8+
-- **Resources**: Minimum 4 CPU, 9GB RAM, 31GB disk per server
-- **SSH**: Key-based authentication
-
-## Documentation
-
-- [CRC Role Documentation](crc/README.md)
-- [SKMO Examples](examples/)
-- [Deployment Scripts](examples/crc-deployment/)
-
 ## Contributing
 
 1. Fork the repository
-2. Create feature branches for each role
+2. Create feature branches
 3. Add comprehensive tests
 4. Update documentation
 5. Submit pull requests
@@ -141,9 +95,3 @@ Deploy both CRC infrastructure and SKMO networking in one playbook:
 ## License
 
 Apache License 2.0
-
-## Support
-
-- GitHub Issues for bugs and feature requests
-- Documentation in role-specific README files
-- Example deployments in `examples/` directory
