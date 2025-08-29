@@ -91,17 +91,16 @@
 - name: Verify CRC is running
   shell: |
     export PATH="{{ crc_bin_path }}:$PATH"
-    crc oc-env --shell bash > /dev/null 2>&1 && echo "CRC is accessible"
+    crc status
   become_user: "{{ crc_user }}"
   register: crc_status
-  ignore_errors: true
   tags: verify_crc
 
 - name: Step 2 - Configure CRC storage
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     make crc_storage
   become_user: "{{ crc_user }}"
   register: make_crc_storage_result
@@ -113,7 +112,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     make crc_attach_default_interface
   become_user: "{{ crc_user }}"
   register: make_crc_attach_result
@@ -125,7 +124,7 @@
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
-    eval $(crc oc-env --shell bash)
+    eval $(crc oc-env)
     make input
   become_user: "{{ crc_user }}"
   register: make_input_result
@@ -140,10 +139,10 @@
       ================================================================
       
       📊 CRC Status:
-      {% if crc_status is defined %}{{ crc_status.stdout }}{% else %}CRC is accessible and running{% endif %}
+      {{ crc_status.stdout }}
       
       ✅ Completed Steps:
-      {% if crc_run_install and (crc_needs_install is defined and crc_needs_install) %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
+      {% if crc_run_install and crc_needs_install %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
       {% if crc_run_attach_interface %}3. ✅ make crc_attach_default_interface - Default interface attached{% endif %}
       {% if crc_run_input %}4. ✅ make input - Secrets created{% endif %}
