@@ -1,0 +1,63 @@
+---
+- name: Deploy OpenStack services to different namespaces per server
+  hosts: crc_servers
+  become: false
+  gather_facts: true
+  
+  vars:
+    # Enable OpenStack service deployment
+    openstack_deploy_control_plane: true
+    openstack_run_deploy: true
+    # Skip tools download and operators (already done)
+    openstack_run_download_tools: false
+    openstack_run_operators: false
+    openstack_run_init: true  # Ensure initialization in target namespace
+
+  pre_tasks:
+    - name: Display deployment plan per server
+      debug:
+        msg: |
+          🚀 OpenStack Services Deployment Plan
+          =====================================
+          
+          Server: {{ inventory_hostname }}
+          Target Namespace: {{ openstack_namespace }}
+          Operators Namespace: {{ openstack_operators_namespace }}
+          
+          This will:
+          1. Initialize OpenStack in namespace: {{ openstack_namespace }}
+          2. Deploy OpenStack control plane services
+          
+          Note: Operators remain in shared namespace: {{ openstack_operators_namespace }}
+
+  roles:
+    - role: ../openstack
+
+  post_tasks:
+    - name: Verify namespace-specific deployment
+      shell: |
+        export PATH="{{ openstack_bin_path }}:$PATH"
+        eval $(crc oc-env)
+        echo "=== Checking namespace: {{ openstack_namespace }} ==="
+        oc get pods -n {{ openstack_namespace }} || echo "No pods found in {{ openstack_namespace }}"
+        echo ""
+        echo "=== OpenStack CR status ==="
+        oc get openstack -n {{ openstack_namespace }} || echo "No OpenStack CR found in {{ openstack_namespace }}"
+      become_user: "{{ openstack_user | default('fedora') }}"
+      register: namespace_verification
+      ignore_errors: true
+      tags: verify
+      
+    - name: Display namespace verification results
+      debug:
+        msg: |
+          🔍 Namespace Verification for {{ inventory_hostname }}:
+          =====================================================
+          
+          {{ namespace_verification.stdout }}
+          
+          {% if namespace_verification.stderr %}
+          Errors:
+          {{ namespace_verification.stderr }}
+          {% endif %}
+      tags: verify

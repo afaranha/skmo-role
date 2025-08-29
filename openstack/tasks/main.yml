@@ -16,6 +16,10 @@
       {% if openstack_deploy_control_plane %}
       - Deploy OpenStack control plane via 'make openstack_deploy'
       {% endif %}
+      
+      🏷️  Namespaces:
+      - Operators: {{ openstack_operators_namespace }}
+      - Services: {{ openstack_namespace }}
 
 - name: Step 0 - Download required tools (if needed)
   shell: |
@@ -52,6 +56,27 @@
   args:
     executable: /bin/bash
   tags: [verify_prerequisites, openstack_operators]
+
+- name: Create OpenStack services namespace
+  shell: |
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env --shell bash)
+    oc create namespace {{ openstack_namespace }} --dry-run=client -o yaml | oc apply -f -
+  become_user: "{{ openstack_user }}"
+  register: namespace_creation
+  when: openstack_run_init | bool or (openstack_deploy_control_plane | bool and openstack_run_deploy | bool)
+  args:
+    executable: /bin/bash
+  tags: [namespace_setup, openstack_init, openstack_deploy]
+
+- name: Display namespace creation results
+  debug:
+    msg: |
+      ✅ Namespace Setup for {{ inventory_hostname }}:
+      Target namespace: {{ openstack_namespace }}
+      {{ namespace_creation.stdout | default('No output') }}
+  when: namespace_creation is defined and namespace_creation.changed is defined
+  tags: [namespace_setup, openstack_init, openstack_deploy]
 
 - name: Display CRC status verification
   debug:
@@ -93,6 +118,7 @@
     cd {{ openstack_install_yamls_path }}
     export PATH="{{ openstack_bin_path }}:$PATH"
     eval $(crc oc-env --shell bash)
+    export NAMESPACE="{{ openstack_namespace }}"
     make openstack_init
   become_user: "{{ openstack_user }}"
   register: make_openstack_init_result
@@ -121,10 +147,11 @@
     cd {{ openstack_install_yamls_path }}
     export PATH="{{ openstack_bin_path }}:$PATH"
     eval $(crc oc-env --shell bash)
+    export NAMESPACE="{{ openstack_namespace }}"
     make openstack_deploy
   become_user: "{{ openstack_user }}"
   register: openstack_deploy_result
-  timeout: "{{ openstack_operators_timeout * 2 }}"  # Double timeout for deployment
+  timeout: "{{ openstack_deploy_timeout }}"
   when: openstack_deploy_control_plane | bool and openstack_run_deploy | bool
   args:
     executable: /bin/bash
@@ -161,9 +188,11 @@
       cd {{ openstack_install_yamls_path }}
       export PATH="{{ openstack_bin_path }}:$PATH"
       eval $(crc oc-env)
+      export NAMESPACE="{{ openstack_namespace }}"
       {% if not openstack_run_init %}make openstack_init    # Initialize OpenStack{% endif %}
       make openstack_deploy  # Deploy OpenStack control plane
       ```
       
       🌐 Region: {{ inventory_hostname }}
+      🏷️  Namespace: {{ openstack_namespace }}
   tags: summary
