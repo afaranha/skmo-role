@@ -6,6 +6,9 @@
       =============================================================
       
       This will install OpenStack operators using install_yamls:
+      {% if openstack_run_download_tools %}
+      - Download required tools via 'make download_tools'
+      {% endif %}
       - Install OpenStack operators via 'make openstack'
       {% if openstack_run_init %}
       - Initialize OpenStack via 'make openstack_init'
@@ -14,13 +17,40 @@
       - Deploy OpenStack control plane via 'make openstack_deploy'
       {% endif %}
 
+- name: Step 0 - Download required tools (if needed)
+  shell: |
+    cd {{ openstack_install_yamls_path }}
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    make download_tools
+  become_user: "{{ openstack_user }}"
+  register: openstack_download_tools_result
+  timeout: "{{ openstack_download_tools_timeout }}"
+  when: openstack_run_download_tools | bool
+  tags: [download_tools, openstack_download_tools]
+
+- name: Display download tools results
+  debug:
+    msg: |
+      ✅ Step 0 Complete - Download tools results for {{ inventory_hostname }}:
+      
+      {{ openstack_download_tools_result.stdout | default('No stdout') }}
+      
+      {% if openstack_download_tools_result.stderr %}
+      Stderr:
+      {{ openstack_download_tools_result.stderr }}
+      {% endif %}
+  when: openstack_run_download_tools | bool
+  tags: [download_tools, openstack_download_tools]
+
 - name: Verify CRC is running before OpenStack deployment
   shell: |
     export PATH="{{ openstack_bin_path }}:$PATH"
-    crc status
+    eval $(crc oc-env --shell bash)
+    oc cluster-info
   become_user: "{{ openstack_user }}"
   register: crc_status_check
-  failed_when: "'Running' not in crc_status_check.stdout"
+  args:
+    executable: /bin/bash
   tags: [verify_prerequisites, openstack_operators]
 
 - name: Display CRC status verification
@@ -34,12 +64,14 @@
   shell: |
     cd {{ openstack_install_yamls_path }}
     export PATH="{{ openstack_bin_path }}:$PATH"
-    eval $(crc oc-env)
+    eval $(crc oc-env --shell bash)
     make openstack
   become_user: "{{ openstack_user }}"
   register: make_openstack_result
   timeout: "{{ openstack_operators_timeout }}"
   when: openstack_run_operators | bool
+  args:
+    executable: /bin/bash
   tags: openstack_operators
 
 - name: Display OpenStack operators installation results
@@ -60,12 +92,14 @@
   shell: |
     cd {{ openstack_install_yamls_path }}
     export PATH="{{ openstack_bin_path }}:$PATH"
-    eval $(crc oc-env)
+    eval $(crc oc-env --shell bash)
     make openstack_init
   become_user: "{{ openstack_user }}"
   register: make_openstack_init_result
   timeout: "{{ openstack_init_timeout }}"
   when: openstack_run_init | bool
+  args:
+    executable: /bin/bash
   tags: openstack_init
 
 - name: Display OpenStack initialization results
@@ -86,12 +120,14 @@
   shell: |
     cd {{ openstack_install_yamls_path }}
     export PATH="{{ openstack_bin_path }}:$PATH"
-      eval $(crc oc-env)
+    eval $(crc oc-env --shell bash)
     make openstack_deploy
   become_user: "{{ openstack_user }}"
   register: openstack_deploy_result
   timeout: "{{ openstack_operators_timeout * 2 }}"  # Double timeout for deployment
   when: openstack_deploy_control_plane | bool and openstack_run_deploy | bool
+  args:
+    executable: /bin/bash
   tags: openstack_deploy
 
 - name: Display OpenStack deployment results

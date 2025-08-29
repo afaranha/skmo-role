@@ -1,0 +1,47 @@
+---
+- name: Run make download_tools on both servers
+  hosts: crc_servers
+  gather_facts: yes
+  become: yes
+  
+  tasks:
+    - name: Display target servers for download_tools
+      debug:
+        msg: |
+          🔧 Running make download_tools for {{ inventory_hostname }}
+          ========================================================
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          User: {{ crc_user }}
+          Install_yamls path: {{ crc_install_yamls_path }}
+    
+    - name: Step 0 - Download required tools
+      shell: |
+        cd {{ crc_install_yamls_path }}
+        export PATH="{{ crc_bin_path }}:$PATH"
+        make download_tools
+      become_user: "{{ crc_user }}"
+      register: make_download_tools_result
+      timeout: "{{ crc_download_tools_timeout }}"
+      tags: download_tools
+      
+    - name: Display download tools results
+      debug:
+        msg: |
+          ✅ Download Tools Complete for {{ inventory_hostname }}:
+          
+          {{ make_download_tools_result.stdout | default('No stdout') }}
+          
+          {% if make_download_tools_result.stderr %}
+          Stderr:
+          {{ make_download_tools_result.stderr }}
+          {% endif %}
+          
+          Return code: {{ make_download_tools_result.rc }}
+      tags: download_tools
+
+  vars:
+    # CRC role defaults
+    crc_user: fedora
+    crc_install_yamls_path: "/home/{{ crc_user }}/openstack/install_yamls"
+    crc_bin_path: "/home/{{ crc_user }}/bin"
+    crc_download_tools_timeout: 600  # 10 minutes

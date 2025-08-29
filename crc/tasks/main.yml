@@ -6,10 +6,36 @@
       =========================================================
       
       CRC infrastructure setup (use openstack role for operators):
+      0. 🔧 make download_tools              (Download required tools)
       1. 🏗️  make crc                        (Install and start CRC)
       2. 🗄️  make crc_storage                (Configure persistent storage)
       3. 🔗 make crc_attach_default_interface (Attach default interface)
       4. 🔐 make input                       (Create input secrets)
+
+- name: Step 0 - Download required tools
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    make download_tools
+  become_user: "{{ crc_user }}"
+  register: make_download_tools_result
+  timeout: "{{ crc_download_tools_timeout }}"
+  when: crc_run_download_tools | bool
+  tags: [download_tools, make_download_tools]
+
+- name: Display download tools results
+  debug:
+    msg: |
+      ✅ Step 0 Complete - Download tools results for {{ inventory_hostname }}:
+      
+      {{ make_download_tools_result.stdout | default('No stdout') }}
+      
+      {% if make_download_tools_result.stderr %}
+      Stderr:
+      {{ make_download_tools_result.stderr }}
+      {% endif %}
+  when: crc_run_download_tools | bool
+  tags: [download_tools, make_download_tools]
 
 - name: Check if CRC is already deployed
   shell: |
@@ -143,6 +169,7 @@
       {% if crc_status is defined and crc_status.stdout is defined %}{{ crc_status.stdout }}{% else %}CRC cluster is accessible and running{% endif %}
       
       ✅ Completed Steps:
+      {% if crc_run_download_tools %}0. ✅ make download_tools - Required tools downloaded{% endif %}
       {% if crc_run_install and (crc_needs_install is defined and crc_needs_install) %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
       {% if crc_run_attach_interface %}3. ✅ make crc_attach_default_interface - Default interface attached{% endif %}

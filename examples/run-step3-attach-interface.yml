@@ -1,0 +1,49 @@
+---
+- name: Run Step 3 - Attach default interface to CRC on afariasa servers
+  hosts: crc_servers
+  gather_facts: yes
+  become: yes
+  
+  tasks:
+    - name: Display target servers
+      debug:
+        msg: |
+          🎯 Running Step 3 - Attach default interface to CRC
+          ===================================================
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          User: {{ ansible_user }}
+          Region: {{ region_name }}
+    
+    - name: Step 3 - Attach default interface to CRC
+      shell: |
+        cd {{ crc_devsetup_path }}
+        export PATH="{{ crc_bin_path }}:$PATH"
+        eval $(crc oc-env)
+        make crc_attach_default_interface
+      become_user: "{{ crc_user }}"
+      register: make_crc_attach_result
+      timeout: "{{ crc_attach_timeout }}"
+      tags: make_crc_attach_interface
+      
+    - name: Display Step 3 results
+      debug:
+        msg: |
+          ✅ Step 3 Complete - Attach default interface results for {{ inventory_hostname }}:
+          
+          {{ make_crc_attach_result.stdout | default('No stdout') }}
+          
+          {% if make_crc_attach_result.stderr %}
+          Stderr:
+          {{ make_crc_attach_result.stderr }}
+          {% endif %}
+          
+          Return code: {{ make_crc_attach_result.rc }}
+      tags: make_crc_attach_interface
+
+  vars:
+    # CRC role defaults
+    crc_user: fedora
+    crc_install_yamls_path: "/home/{{ crc_user }}/openstack/install_yamls"
+    crc_devsetup_path: "{{ crc_install_yamls_path }}/devsetup"
+    crc_bin_path: "/home/{{ crc_user }}/bin"
+    crc_attach_timeout: 300  # 5 minutes

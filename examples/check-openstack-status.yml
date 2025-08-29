@@ -1,0 +1,66 @@
+---
+- name: Check OpenStack deployment status
+  hosts: crc_servers
+  gather_facts: yes
+  become: yes
+  
+  tasks:
+    - name: Check OpenStack operator subscription
+      shell: |
+        export PATH="/home/fedora/bin:$PATH"
+        eval $(crc oc-env --shell bash)
+        oc get subscription -n openstack-operators openstack-operator -o wide
+      become_user: fedora
+      register: subscription_status
+      ignore_errors: true
+      args:
+        executable: /bin/bash
+        
+    - name: Check OpenStack CR status  
+      shell: |
+        export PATH="/home/fedora/bin:$PATH"
+        eval $(crc oc-env --shell bash)
+        oc get openstack -n openstack-operators openstack -o wide
+      become_user: fedora
+      register: openstack_cr_status
+      ignore_errors: true
+      args:
+        executable: /bin/bash
+        
+    - name: Check webhook services
+      shell: |
+        export PATH="/home/fedora/bin:$PATH"
+        eval $(crc oc-env --shell bash)
+        oc get services -n openstack-operators | grep webhook
+      become_user: fedora
+      register: webhook_status
+      ignore_errors: true
+      args:
+        executable: /bin/bash
+    
+    - name: Display comprehensive status
+      debug:
+        msg: |
+          🔍 OpenStack Status for {{ inventory_hostname }}:
+          ===============================================
+          
+          📋 Subscription Status:
+          {% if subscription_status.rc == 0 %}
+          {{ subscription_status.stdout }}
+          {% else %}
+          ❌ Error: {{ subscription_status.stderr | default('Unknown error') }}
+          {% endif %}
+          
+          📋 OpenStack CR Status:
+          {% if openstack_cr_status.rc == 0 %}
+          {{ openstack_cr_status.stdout }}
+          {% else %}
+          ❌ Error: {{ openstack_cr_status.stderr | default('Unknown error') }}
+          {% endif %}
+          
+          📋 Webhook Services:
+          {% if webhook_status.rc == 0 %}
+          {{ webhook_status.stdout }}
+          {% else %}
+          ❌ Error: {{ webhook_status.stderr | default('Unknown error') }}
+          {% endif %}
