@@ -1,0 +1,12 @@
+---
+- name: Deploy OpenStack with selective steps
+  hosts: all
+  become: false
+  gather_facts: true
+  roles:
+    - role: openstack
+      vars:
+        openstack_run_operators: true  # Install operators
+        openstack_run_init: true       # Initialize OpenStack
+        openstack_run_deploy: false    # Skip deployment
+        openstack_deploy_control_plane: false

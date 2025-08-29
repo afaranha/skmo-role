@@ -7,6 +7,9 @@
       
       This will install OpenStack operators using install_yamls:
       - Install OpenStack operators via 'make openstack'
+      {% if openstack_run_init %}
+      - Initialize OpenStack via 'make openstack_init'
+      {% endif %}
       {% if openstack_deploy_control_plane %}
       - Deploy OpenStack control plane via 'make openstack_deploy'
       {% endif %}
@@ -53,6 +56,32 @@
   when: openstack_run_operators | bool
   tags: openstack_operators
 
+- name: Initialize OpenStack
+  shell: |
+    cd {{ openstack_install_yamls_path }}
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make openstack_init
+  become_user: "{{ openstack_user }}"
+  register: make_openstack_init_result
+  timeout: "{{ openstack_init_timeout }}"
+  when: openstack_run_init | bool
+  tags: openstack_init
+
+- name: Display OpenStack initialization results
+  debug:
+    msg: |
+      ✅ OpenStack Initialization Complete for {{ inventory_hostname }}:
+      
+      {{ make_openstack_init_result.stdout | default('No stdout') }}
+      
+      {% if make_openstack_init_result.stderr %}
+      Stderr:
+      {{ make_openstack_init_result.stderr }}
+      {% endif %}
+  when: openstack_run_init | bool
+  tags: openstack_init
+
 - name: Deploy OpenStack control plane (optional)
   shell: |
     cd {{ openstack_install_yamls_path }}
@@ -87,7 +116,8 @@
       
       ✅ Completed Steps:
       {% if openstack_run_operators %}1. ✅ OpenStack operators installed{% endif %}
-      {% if openstack_deploy_control_plane and openstack_run_deploy %}2. ✅ OpenStack control plane deployed{% endif %}
+      {% if openstack_run_init %}2. ✅ OpenStack initialized{% endif %}
+      {% if openstack_deploy_control_plane and openstack_run_deploy %}3. ✅ OpenStack control plane deployed{% endif %}
       
       🚀 Manual deployment command (if needed):
       ```bash
@@ -95,6 +125,7 @@
       cd {{ openstack_install_yamls_path }}
       export PATH="{{ openstack_bin_path }}:$PATH"
       eval $(crc oc-env)
+      {% if not openstack_run_init %}make openstack_init    # Initialize OpenStack{% endif %}
       make openstack_deploy  # Deploy OpenStack control plane
       ```
       

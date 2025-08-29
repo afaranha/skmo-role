@@ -4,10 +4,11 @@ This Ansible role deploys OpenStack operators using the official install_yamls m
 
 ## Description
 
-This role handles the OpenStack operators installation step from the install_yamls workflow. It assumes that CRC is already running and properly configured, and focuses specifically on:
+This role handles the OpenStack operators installation and initialization from the install_yamls workflow. It assumes that CRC is already running and properly configured, and focuses specifically on:
 
 1. `make openstack` - Install OpenStack operators
-2. `make openstack_deploy` - Deploy OpenStack control plane (optional)
+2. `make openstack_init` - Initialize OpenStack
+3. `make openstack_deploy` - Deploy OpenStack control plane (optional)
 
 ## Requirements
 
@@ -32,10 +33,12 @@ openstack_bin_path: "/home/{{ openstack_user }}/bin"
 
 # Timeout settings (seconds)
 openstack_operators_timeout: 1800  # 30 minutes
+openstack_init_timeout: 600        # 10 minutes
 
 # Steps to execute
 openstack_run_operators: true
-openstack_run_deploy: false  # Optional deployment step
+openstack_run_init: true           # Run openstack_init after operators
+openstack_run_deploy: false       # Optional deployment step
 
 # OpenStack deployment options
 openstack_deploy_control_plane: false  # Set to true to automatically deploy control plane
@@ -105,6 +108,21 @@ openstack_deploy_control_plane: false  # Set to true to automatically deploy con
     - role: openstack
       vars:
         openstack_operators_timeout: 3600  # 60 minutes
+        openstack_init_timeout: 1200       # 20 minutes
+```
+
+### Skip Initialization Step
+
+```yaml
+---
+- name: Install operators without initialization
+  hosts: crc_servers
+  become: false
+  gather_facts: true
+  roles:
+    - role: openstack
+      vars:
+        openstack_run_init: false  # Skip openstack_init step
 ```
 
 ## Tags
@@ -113,6 +131,7 @@ The role supports the following tags for selective execution:
 
 - `verify_prerequisites` - Verify CRC is running
 - `openstack_operators` - Install OpenStack operators
+- `openstack_init` - Initialize OpenStack
 - `openstack_deploy` - Deploy OpenStack control plane
 - `summary` - Final status display
 
@@ -122,7 +141,10 @@ The role supports the following tags for selective execution:
 # Install operators only
 ansible-playbook playbook.yml --tags "openstack_operators"
 
-# Deploy control plane only (assumes operators installed)
+# Initialize OpenStack only
+ansible-playbook playbook.yml --tags "openstack_init"
+
+# Deploy control plane only (assumes operators and init completed)
 ansible-playbook playbook.yml --tags "openstack_deploy"
 
 # Check prerequisites only
