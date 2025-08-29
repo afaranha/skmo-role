@@ -1,0 +1,15 @@
+---
+# Default variables for OpenStack role
+openstack_user: fedora
+openstack_install_yamls_path: "/home/{{ openstack_user }}/openstack/install_yamls"
+openstack_bin_path: "/home/{{ openstack_user }}/bin"
+
+# Timeout settings (in seconds)
+openstack_operators_timeout: 1800  # 30 minutes
+
+# Steps to execute
+openstack_run_operators: true
+openstack_run_deploy: false  # Optional deployment step
+
+# OpenStack deployment options
+openstack_deploy_control_plane: false  # Set to true to automatically deploy control plane

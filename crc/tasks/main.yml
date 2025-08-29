@@ -121,7 +121,7 @@
   when: crc_run_input | bool
   tags: make_input
 
-- name: Step 4 - Install OpenStack operators
+- name: Step 4 - Install OpenStack operators (DEPRECATED - use openstack role)
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
@@ -146,15 +146,20 @@
       {% if crc_run_install and crc_needs_install %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
       {% if crc_run_input %}3. ✅ make input - Secrets created{% endif %}
-      {% if crc_run_openstack %}4. ✅ make openstack - Operators installed{% endif %}
+      {% if crc_run_openstack %}4. ⚠️  make openstack - DEPRECATED (use openstack role){% endif %}
       
-      🚀 Ready for OpenStack deployment:
+      🚀 Ready for OpenStack operators installation:
       ```bash
+      # Use the openstack role for operators installation
+      ansible-playbook playbook.yml -t openstack_operators
+      
+      # Or manually:
       ssh {{ crc_user }}@{{ ansible_default_ipv4.address }}
       cd ~/openstack/install_yamls
       export PATH="{{ crc_bin_path }}:$PATH"
       eval $(crc oc-env)
-      make openstack_deploy  # Deploy OpenStack control plane
+      make openstack         # Install operators
+      make openstack_deploy  # Deploy control plane
       ```
       
       🌐 Region: {{ inventory_hostname }}

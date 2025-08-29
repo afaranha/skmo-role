@@ -17,23 +17,50 @@ The main SKMO role for setting up multi-region OpenStack networking using Skuppe
 
 ### 2. CRC Role (`crc/`)
 
-Ansible role for deploying CodeReady Containers (CRC) and OpenStack using the official install_yamls methodology.
+Ansible role for deploying CodeReady Containers (CRC) infrastructure using the official install_yamls methodology.
 
 **Features:**
 - CRC installation using install_yamls devsetup
-- OpenStack operator deployment
+- Storage and input configuration
 - Configurable resource allocation
-- Step-by-step workflow execution
+- Smart CRC detection and skipping
 - Tag-based selective execution
 
+### 3. OpenStack Role (`openstack/`)
+
+Ansible role for deploying OpenStack operators using the official install_yamls methodology.
+
+**Features:**
+- OpenStack operators installation
+- Optional control plane deployment
+- CRC prerequisite verification
+- Configurable deployment options
+- Integration with CRC role
+
 ## Quick Start
+
+### Deploy CRC Infrastructure
+
+```bash
+# CRC only (infrastructure setup)
+cd examples
+ansible-playbook deploy-crc.yml -i inventory.yml
+```
 
 ### Deploy CRC and OpenStack
 
 ```bash
-# Using the CRC role
+# CRC + OpenStack operators
 cd examples
-ansible-playbook deploy-crc.yml -i inventory.yml
+ansible-playbook deploy-crc-and-openstack.yml -i inventory.yml
+```
+
+### Deploy OpenStack Only
+
+```bash
+# OpenStack operators only (CRC must be running)
+cd examples
+ansible-playbook deploy-openstack-only.yml -i inventory.yml
 ```
 
 ### Setup SKMO Multi-Region Networking
@@ -58,21 +85,29 @@ After setting up OpenStack infrastructure, use the SKMO role for multi-region ne
 
 ```
 skmo-role/
-├── crc/                     # CRC deployment role
+├── crc/                     # CRC infrastructure role
 │   ├── tasks/
 │   ├── defaults/
 │   ├── meta/
 │   ├── handlers/
 │   └── README.md
-├── skmo/                    # Main SKMO role
+├── openstack/               # OpenStack operators role
+│   ├── tasks/
+│   ├── defaults/
+│   ├── meta/
+│   ├── handlers/
+│   └── README.md
+├── skmo/                    # Multi-region networking role
 │   ├── tasks/
 │   ├── templates/
 │   ├── defaults/
 │   └── README.md
 ├── examples/
-│   ├── deploy-crc.yml       # CRC deployment playbook
-│   ├── inventory.yml        # Example inventory
-│   └── ansible.cfg          # Ansible configuration
+│   ├── deploy-crc.yml              # CRC only
+│   ├── deploy-openstack-only.yml   # OpenStack only
+│   ├── deploy-crc-and-openstack.yml # Combined
+│   ├── inventory.yml               # Example inventory
+│   └── ansible.cfg                 # Ansible configuration
 └── README.md
 ```
 
@@ -93,11 +128,18 @@ cd examples
 ansible-playbook deploy-crc.yml -i inventory.yml
 ```
 
+### Combined CRC and OpenStack
+
+```bash
+cd examples
+ansible-playbook deploy-crc-and-openstack.yml -i inventory.yml
+```
+
 ### Custom Resource Allocation
 
 ```yaml
 ---
-- name: Deploy CRC with custom resources
+- name: Deploy with custom resources
   hosts: crc_servers
   roles:
     - role: crc
@@ -105,26 +147,29 @@ ansible-playbook deploy-crc.yml -i inventory.yml
         crc_cpus: 16
         crc_memory: 32768
         crc_disk: 150
+    - role: openstack
+      vars:
+        openstack_deploy_control_plane: true
 ```
 
-### Selective Step Execution
+### Selective Execution
 
 ```bash
-# Run only CRC installation
-ansible-playbook deploy-crc.yml -i inventory.yml --tags "make_crc"
+# CRC infrastructure only
+ansible-playbook deploy-crc-and-openstack.yml --tags "crc"
 
-# Skip CRC installation, run other steps
-ansible-playbook deploy-crc.yml -i inventory.yml --skip-tags "make_crc"
+# OpenStack operators only
+ansible-playbook deploy-crc-and-openstack.yml --tags "openstack_operators"
 ```
 
 ### Complete Multi-Region Setup
 
-1. **Deploy CRC Infrastructure**:
+1. **Deploy CRC and OpenStack Infrastructure**:
    ```bash
-   ansible-playbook deploy-crc.yml -i inventory.yml
+   ansible-playbook deploy-crc-and-openstack.yml -i inventory.yml
    ```
 
-2. **Configure SKMO Networking**:
+2. **Configure SKMO Multi-Region Networking**:
    ```yaml
    - hosts: crc_servers
      roles:
@@ -136,9 +181,19 @@ ansible-playbook deploy-crc.yml -i inventory.yml --skip-tags "make_crc"
                is_region_zero: "{{ inventory_hostname == groups['crc_servers'][0] }}"
    ```
 
+3. **All-in-One Deployment**:
+   ```yaml
+   - hosts: crc_servers
+     roles:
+       - crc        # CRC infrastructure
+       - openstack  # OpenStack operators
+       - skmo       # Multi-region networking
+   ```
+
 ## Documentation
 
 - [CRC Role Documentation](crc/README.md)
+- [OpenStack Role Documentation](openstack/README.md)
 - [SKMO Role Documentation](skmo/README.md)
 - [Example Playbooks](examples/)
 

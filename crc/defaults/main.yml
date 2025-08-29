@@ -19,7 +19,7 @@ crc_openstack_timeout: 1800 # 30 minutes
 crc_run_install: true
 crc_run_storage: true
 crc_run_input: true
-crc_run_openstack: true
+crc_run_openstack: false  # Moved to separate openstack role
 
 # Skip installation if CRC is already running
 crc_skip_if_running: true

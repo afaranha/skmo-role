@@ -1,0 +1,7 @@
+---
+- name: Deploy OpenStack operators only
+  hosts: all
+  become: false
+  gather_facts: true
+  roles:
+    - openstack

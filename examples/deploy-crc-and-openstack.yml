@@ -1,0 +1,8 @@
+---
+- name: Deploy CRC infrastructure and OpenStack operators
+  hosts: all
+  become: false
+  gather_facts: true
+  roles:
+    - crc        # Install CRC, storage, and input secrets
+    - openstack  # Install OpenStack operators

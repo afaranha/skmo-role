@@ -4,12 +4,13 @@ This Ansible role deploys CodeReady Containers (CRC) and OpenStack using the off
 
 ## Description
 
-This role follows the install_yamls documentation exactly to set up CRC and OpenStack operators. It executes the standard workflow:
+This role follows the install_yamls documentation exactly to set up CRC infrastructure. It executes the core CRC workflow:
 
 1. `make crc` - Install and start CRC
 2. `make crc_storage` - Configure persistent storage
 3. `make input` - Create input secrets
-4. `make openstack` - Install OpenStack operators
+
+**Note**: OpenStack operators installation has been moved to the separate `openstack` role for better modularity.
 
 ## Requirements
 
@@ -49,7 +50,7 @@ crc_openstack_timeout: 1800 # 30 minutes
 crc_run_install: true
 crc_run_storage: true
 crc_run_input: true
-crc_run_openstack: true
+crc_run_openstack: false  # DEPRECATED - use openstack role instead
 
 # Skip installation if CRC is already running
 crc_skip_if_running: true
@@ -128,6 +129,19 @@ None
     - role: crc
       vars:
         crc_skip_if_running: false  # Force reinstallation
+```
+
+### Combined with OpenStack Role
+
+```yaml
+---
+- name: Deploy CRC infrastructure and OpenStack operators
+  hosts: crc_servers
+  become: false
+  gather_facts: true
+  roles:
+    - crc        # Install CRC, storage, and input secrets
+    - openstack  # Install OpenStack operators
 ```
 
 ## Tags

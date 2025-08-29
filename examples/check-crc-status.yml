@@ -1,0 +1,13 @@
+---
+- name: Check CRC status only
+  hosts: all
+  become: false
+  gather_facts: true
+  roles:
+    - role: crc
+      vars:
+        crc_run_install: false
+        crc_run_storage: false
+        crc_run_input: false
+        crc_run_openstack: false
+  tags: [check_crc, verify_crc]
