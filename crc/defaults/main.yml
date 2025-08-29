@@ -12,11 +12,13 @@ crc_bin_path: "/home/{{ crc_user }}/bin"
 # Timeout settings (in seconds)
 crc_install_timeout: 2400  # 40 minutes
 crc_storage_timeout: 300   # 5 minutes
+crc_attach_timeout: 300    # 5 minutes
 crc_input_timeout: 300     # 5 minutes
 
 # Steps to execute
 crc_run_install: true
 crc_run_storage: true
+crc_run_attach_interface: true
 crc_run_input: true
 
 # Skip installation if CRC is already running

@@ -8,7 +8,8 @@ This role follows the install_yamls documentation exactly to set up CRC infrastr
 
 1. `make crc` - Install and start CRC
 2. `make crc_storage` - Configure persistent storage
-3. `make input` - Create input secrets
+3. `make crc_attach_default_interface` - Attach default interface
+4. `make input` - Create input secrets
 
 **Note**: OpenStack operators installation has been moved to the separate `openstack` role for better modularity.
 
@@ -43,12 +44,13 @@ crc_bin_path: "/home/{{ crc_user }}/bin"
 # Timeout settings (seconds)
 crc_install_timeout: 2400  # 40 minutes
 crc_storage_timeout: 300   # 5 minutes
+crc_attach_timeout: 300    # 5 minutes
 crc_input_timeout: 300     # 5 minutes
-crc_openstack_timeout: 1800 # 30 minutes
 
 # Step execution control
 crc_run_install: true
 crc_run_storage: true
+crc_run_attach_interface: true
 crc_run_input: true
 
 # Skip installation if CRC is already running
@@ -111,6 +113,7 @@ None
       vars:
         crc_run_install: false
         crc_run_storage: true
+        crc_run_attach_interface: false
         crc_run_input: true
 ```
 
@@ -148,7 +151,8 @@ The role supports the following tags for selective execution:
 - `check_crc` - Check current CRC status
 - `make_crc` - CRC installation step (includes check)
 - `verify_crc` - CRC status verification
-- `make_crc_storage` - Storage configuration step  
+- `make_crc_storage` - Storage configuration step
+- `make_crc_attach_interface` - Attach default interface step
 - `make_input` - Input secrets creation step
 - `summary` - Final status display
 

@@ -6,9 +6,10 @@
       =========================================================
       
       CRC infrastructure setup (use openstack role for operators):
-      1. 🏗️  make crc          (Install and start CRC)
-      2. 🗄️  make crc_storage  (Configure persistent storage)
-      3. 🔐 make input         (Create input secrets)
+      1. 🏗️  make crc                        (Install and start CRC)
+      2. 🗄️  make crc_storage                (Configure persistent storage)
+      3. 🔗 make crc_attach_default_interface (Attach default interface)
+      4. 🔐 make input                       (Create input secrets)
 
 - name: Check if CRC is already deployed
   shell: |
@@ -107,7 +108,19 @@
   when: crc_run_storage | bool
   tags: make_crc_storage
 
-- name: Step 3 - Create input secrets
+- name: Step 3 - Attach default interface to CRC
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make crc_attach_default_interface
+  become_user: "{{ crc_user }}"
+  register: make_crc_attach_result
+  timeout: "{{ crc_attach_timeout }}"
+  when: crc_run_attach_interface | bool
+  tags: make_crc_attach_interface
+
+- name: Step 4 - Create input secrets
   shell: |
     cd {{ crc_install_yamls_path }}
     export PATH="{{ crc_bin_path }}:$PATH"
@@ -131,7 +144,8 @@
       ✅ Completed Steps:
       {% if crc_run_install and crc_needs_install %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
       {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
-      {% if crc_run_input %}3. ✅ make input - Secrets created{% endif %}
+      {% if crc_run_attach_interface %}3. ✅ make crc_attach_default_interface - Default interface attached{% endif %}
+      {% if crc_run_input %}4. ✅ make input - Secrets created{% endif %}
       
       🚀 Ready for OpenStack operators installation:
       ```bash

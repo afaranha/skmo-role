@@ -1,0 +1,12 @@
+---
+- name: Deploy CRC with selective steps
+  hosts: all
+  become: false
+  gather_facts: true
+  roles:
+    - role: crc
+      vars:
+        crc_run_install: true
+        crc_run_storage: true
+        crc_run_attach_interface: true  # Can be set to false to skip
+        crc_run_input: true
