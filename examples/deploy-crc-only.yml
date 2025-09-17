@@ -1,0 +1,21 @@
+---
+# Deploy CRC infrastructure only for testing
+- name: Deploy CRC infrastructure
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1
+  roles:
+    - role: crc
+      vars:
+        # Override paths for current environment
+        crc_pull_secret_path: "/home/fedora/workspace/pull-secret.txt"
+        crc_install_yamls_path: "/home/fedora/workspace/install_yamls"
+        crc_devsetup_path: "/home/fedora/workspace/install_yamls/devsetup"
+        crc_user: fedora
+        crc_cpus: 12
+        crc_memory: 25600
+        crc_disk: 100
+        # Skip if CRC is already running
+        crc_skip_if_running: true
+        # Skip download tools step since we already have tools
+        crc_run_download_tools: false

@@ -4,7 +4,7 @@ crc_user: fedora
 crc_cpus: 12
 crc_memory: 25600
 crc_disk: 100
-crc_install_yamls_path: "/home/{{ crc_user }}/openstack/install_yamls"
+crc_install_yamls_path: "/home/{{ crc_user }}/install_yamls"
 crc_devsetup_path: "{{ crc_install_yamls_path }}/devsetup"
 crc_pull_secret_path: "/home/{{ crc_user }}/pull-secret.txt"
 crc_bin_path: "/home/{{ crc_user }}/bin"

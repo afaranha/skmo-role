@@ -1,0 +1,48 @@
+---
+# Multi-region OpenStack 18 deployment inventory
+# Deploy both regions on localhost using fedora user
+
+crc_servers:
+  hosts:
+    region1:
+      # Using localhost for region 1
+      ansible_host: localhost
+      ansible_connection: local
+      ansible_user: fedora
+      ansible_become: yes
+      ansible_python_interpreter: /usr/bin/python3
+      region_name: region-1
+      # OpenStack namespace configuration
+      openstack_namespace: "openstack-region-1"
+      openstack_operators_namespace: "openstack-operators"
+      network_isolation: true
+      # Services for region 1 - Keystone and Horizon
+      deploy_services:
+        keystone: true
+        horizon: true
+        mariadb: true
+        rabbitmq: true
+        # Core infrastructure services needed for keystone/horizon
+        memcached: true
+        placement: true
+      # Network ranges for install_yamls network isolation
+      network_ranges:
+        - "172.17.0"  # Internal API
+        - "172.18.0"  # Storage
+        - "172.19.0"  # Tenant
+        - "172.20.0"  # Storage Management
+      ctlplane_interface: enp1s0
+      # CRC configuration for region 1
+      crc_cpus: 12
+      crc_memory: 25600
+      crc_disk: 100
+
+  vars:
+    # Global configuration
+    crc_user: fedora
+    # Pull secret path
+    crc_pull_secret_path: "/home/fedora/workspace/pull-secret.txt"
+    # Install yamls path 
+    crc_install_yamls_path: "/home/fedora/workspace/install_yamls"
+    openstack_install_yamls_path: "/home/fedora/workspace/install_yamls"
+    crc_bin_path: "/home/fedora/bin"

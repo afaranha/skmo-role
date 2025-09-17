@@ -1,0 +1,70 @@
+---
+# OpenStack 18 Multi-Region Deployment Playbook
+# Deploy CRC, OpenStack operators and services in a multi-region setup
+# Region 1: Keystone + Horizon
+# Region 2: All other services
+
+- name: Deploy CRC infrastructure on all regions
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1  # Deploy one region at a time to avoid resource conflicts
+  roles:
+    - role: crc
+      vars:
+        # Override paths for current environment
+        crc_pull_secret_path: "/root/workspace/pull-secret.txt"
+        crc_install_yamls_path: "/root/workspace/install_yamls"
+        crc_devsetup_path: "/root/workspace/install_yamls/devsetup"
+        crc_user: root
+        crc_cpus: 12
+        crc_memory: 25600
+        crc_disk: 100
+        # Skip if CRC is already running
+        crc_skip_if_running: true
+
+- name: Deploy OpenStack operators on all regions  
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1  # Deploy one region at a time
+  roles:
+    - role: openstack
+      vars:
+        # Override paths for current environment
+        openstack_install_yamls_path: "/root/workspace/install_yamls"
+        openstack_user: root
+        # Only install operators and init, not the control plane yet
+        openstack_run_operators: true
+        openstack_run_init: true
+        openstack_run_deploy: false
+
+- name: Deploy OpenStack control plane with service separation
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1  # Deploy one region at a time
+  roles:
+    - role: openstack
+      vars:
+        openstack_install_yamls_path: "/root/workspace/install_yamls"
+        openstack_user: root
+        # Only run deployment step
+        openstack_run_operators: false
+        openstack_run_init: false
+        openstack_run_deploy: true
+        openstack_deploy_control_plane: true
+        # Service configuration based on region
+        deploy_keystone_only: "{{ deploy_services.keystone is defined and deploy_services.keystone }}"
+        deploy_horizon_only: "{{ deploy_services.horizon is defined and deploy_services.horizon }}"
+        deploy_all_services: "{{ deploy_services.nova is defined and deploy_services.nova }}"
+
+- name: Setup multi-region networking with SKMO
+  hosts: crc_servers
+  gather_facts: true
+  roles:
+    - role: skmo
+      vars:
+        skmo_namespaces:
+          - name: "{{ openstack_namespace }}"
+            region: "{{ region_name }}"
+            is_region_zero: "{{ inventory_hostname == groups['crc_servers'][0] }}"
+            server_host: "{{ ansible_host }}"
+            services: "{{ deploy_services }}"

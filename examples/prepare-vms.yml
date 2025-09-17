@@ -1,0 +1,83 @@
+---
+# Prepare VMs for OpenStack multi-region deployment
+- name: Prepare x86_64 VMs for OpenStack deployment
+  hosts: crc_servers
+  gather_facts: true
+  tasks:
+    - name: Update system packages
+      become: yes
+      package:
+        name: '*'
+        state: latest
+      register: update_result
+
+    - name: Install required packages
+      become: yes
+      package:
+        name:
+          - git
+          - curl
+          - wget
+          - tar
+          - xz
+          - python3
+          - python3-pip
+          - sudo
+          - jq
+          - make
+          - gcc
+          - golang
+          - libvirt-daemon
+          - qemu-kvm
+          - virt-install
+          - virt-viewer
+          - podman
+          - buildah
+          - skopeo
+        state: present
+
+    - name: Clone install_yamls repository
+      git:
+        repo: https://github.com/openstack-k8s-operators/install_yamls.git
+        dest: "{{ crc_install_yamls_path }}"
+        version: main
+        force: yes
+
+    - name: Copy pull-secret to VMs
+      copy:
+        src: /root/workspace/pull-secret.txt
+        dest: "{{ crc_pull_secret_path }}"
+        mode: '0600'
+
+    - name: Create bin directory
+      file:
+        path: "{{ crc_bin_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Add user to libvirt group
+      become: yes
+      user:
+        name: "{{ crc_user }}"
+        groups: libvirt
+        append: yes
+
+    - name: Start and enable libvirtd
+      become: yes
+      systemd:
+        name: libvirtd
+        state: started
+        enabled: yes
+
+    - name: Display VM preparation status
+      debug:
+        msg: |
+          ✅ VM {{ inventory_hostname }} prepared successfully!
+          
+          📍 IP Address: {{ ansible_default_ipv4.address }}
+          🏗️ Architecture: {{ ansible_architecture }}
+          💾 Available Memory: {{ ansible_memfree_mb }}MB
+          📁 Install YAMLS: {{ crc_install_yamls_path }}
+          🔐 Pull Secret: {{ crc_pull_secret_path }}
+          
+          Ready for CRC deployment!

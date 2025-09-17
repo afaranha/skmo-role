@@ -50,12 +50,16 @@
   debug:
     msg: |
       📊 Current CRC Status for {{ inventory_hostname }}:
-      {% if crc_initial_status.rc == 0 %}
+      {% if crc_initial_status is defined and crc_initial_status.rc is defined and crc_initial_status.rc == 0 %}
       {{ crc_initial_status.stdout }}
       {% else %}
       CRC is not installed or not accessible
+      {% if crc_initial_status is defined and crc_initial_status.rc is defined %}
       Return code: {{ crc_initial_status.rc }}
       Error: {{ crc_initial_status.stderr | default('Unknown error') }}
+      {% else %}
+      Previous check failed or was skipped
+      {% endif %}
       {% endif %}
   tags: [check_crc, make_crc]
 
@@ -63,7 +67,7 @@
   set_fact:
     crc_needs_install: >-
       {{
-        (crc_initial_status.rc != 0 or 'Running' not in crc_initial_status.stdout) or
+        (crc_initial_status is not defined or crc_initial_status.rc is not defined or crc_initial_status.rc != 0 or 'Running' not in (crc_initial_status.stdout | default(''))) or
         not (crc_skip_if_running | bool)
       }}
   tags: [check_crc, make_crc]
@@ -74,7 +78,7 @@
       🔍 CRC Installation Decision for {{ inventory_hostname }}:
       {% if not (crc_skip_if_running | bool) %}
       🔄 Force installation enabled (crc_skip_if_running: false)
-      {% elif crc_initial_status.rc != 0 or 'Running' not in crc_initial_status.stdout %}
+      {% elif crc_initial_status is not defined or crc_initial_status.rc is not defined or crc_initial_status.rc != 0 or 'Running' not in (crc_initial_status.stdout | default('')) %}
       ⚠️  CRC installation/start needed
       {% else %}
       ✅ CRC is already running - skipping installation step

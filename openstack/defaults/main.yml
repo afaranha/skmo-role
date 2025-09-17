@@ -1,8 +1,8 @@
 ---
 # Default variables for OpenStack role
-openstack_user: fedora
-openstack_install_yamls_path: "/home/{{ openstack_user }}/openstack/install_yamls"
-openstack_bin_path: "/home/{{ openstack_user }}/bin"
+openstack_user: cloud-user
+openstack_install_yamls_path: "/home/cloud-user/install_yamls"
+openstack_bin_path: "/home/cloud-user/bin"
 
 # Namespace configuration - can be overridden per server
 openstack_namespace: "openstack"  # Default namespace for OpenStack services

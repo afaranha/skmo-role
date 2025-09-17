@@ -1,0 +1,44 @@
+---
+# Deploy CRC and OpenStack on x86_64 VMs - Multi-region OpenStack 18
+- name: Deploy CRC infrastructure on x86_64 VMs
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1  # Deploy one region at a time
+  roles:
+    - role: crc
+      vars:
+        # Skip download tools since we need to install them manually first
+        crc_run_download_tools: false
+        # CRC configuration
+        crc_cpus: 12
+        crc_memory: 25600
+        crc_disk: 100
+        crc_skip_if_running: true
+
+- name: Deploy OpenStack operators on x86_64 VMs  
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1  # Deploy one region at a time
+  roles:
+    - role: openstack
+      vars:
+        # Skip download tools - should be done by CRC role
+        openstack_run_download_tools: false
+        # Install operators and init
+        openstack_run_operators: true
+        openstack_run_init: true
+        openstack_run_deploy: false
+
+- name: Deploy OpenStack control plane with service separation
+  hosts: crc_servers
+  gather_facts: true
+  serial: 1  # Deploy one region at a time
+  roles:
+    - role: openstack
+      vars:
+        # Only run deployment step
+        openstack_run_download_tools: false
+        openstack_run_operators: false
+        openstack_run_init: false
+        openstack_run_deploy: true
+        openstack_deploy_control_plane: true

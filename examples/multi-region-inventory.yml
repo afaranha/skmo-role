@@ -1,0 +1,81 @@
+---
+# Multi-region OpenStack 18 deployment inventory
+# Based on upshiftai VMs from openstack server list
+
+crc_servers:
+  hosts:
+    region1:
+      # Using openstack-multiregion-region1 VM  
+      ansible_host: 10.0.202.158
+      ansible_user: root
+      region_name: region-1
+      # OpenStack namespace configuration
+      openstack_namespace: "openstack-region-1"
+      openstack_operators_namespace: "openstack-operators"
+      network_isolation: true
+      # Services for region 1 - Keystone and Horizon
+      deploy_services:
+        keystone: true
+        horizon: true
+        mariadb: true
+        rabbitmq: true
+        # Core infrastructure services needed for keystone/horizon
+        memcached: true
+        placement: true
+      # Network ranges for install_yamls network isolation
+      network_ranges:
+        - "172.17.0"  # Internal API
+        - "172.18.0"  # Storage
+        - "172.19.0"  # Tenant
+        - "172.20.0"  # Storage Management
+      ctlplane_interface: enp1s0
+      
+    region2:
+      # Using openstack-multiregion-region2 VM
+      ansible_host: 10.0.202.126
+      ansible_user: root
+      region_name: region-2
+      # OpenStack namespace configuration  
+      openstack_namespace: "openstack-region-2"
+      openstack_operators_namespace: "openstack-operators"
+      network_isolation: true
+      # Services for region 2 - All other services
+      deploy_services:
+        nova: true
+        neutron: true
+        cinder: true
+        glance: true
+        heat: true
+        swift: true
+        octavia: true
+        manila: true
+        barbican: true
+        designate: true
+        ironic: true
+        # Infrastructure services
+        mariadb: true
+        rabbitmq: true
+        memcached: true
+        ovn: true
+      # Network ranges for install_yamls network isolation (different from region-1)
+      network_ranges:
+        - "172.27.0"  # Internal API
+        - "172.28.0"  # Storage
+        - "172.29.0"  # Tenant
+        - "172.30.0"  # Storage Management
+      ctlplane_interface: enp1s0
+
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_become: no  # Already using root user
+    # Global configuration
+    crc_user: root
+    crc_cpus: 12
+    crc_memory: 25600
+    crc_disk: 100
+    # Pull secret path
+    crc_pull_secret_path: "/root/workspace/pull-secret.txt"
+    # Install yamls path 
+    crc_install_yamls_path: "/root/workspace/install_yamls"
+    openstack_install_yamls_path: "/root/workspace/install_yamls"
