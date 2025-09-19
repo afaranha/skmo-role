@@ -3,7 +3,7 @@
 crc_servers:
   hosts:
     afariasa-region-1:
-      ansible_host: 10.0.79.173
+      ansible_host: 10.0.203.216
       ansible_user: fedora
       region_name: region-1
       # OpenStack namespace configuration
@@ -19,7 +19,7 @@ crc_servers:
       ctlplane_interface: enp1s0
       
     afariasa-region-2:
-      ansible_host: 10.0.79.110
+      ansible_host: 10.0.203.236
       ansible_user: fedora
       region_name: region-2
       # OpenStack namespace configuration  

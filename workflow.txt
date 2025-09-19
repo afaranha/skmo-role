@@ -1,0 +1,3 @@
+ansible-playbook -i inventory.yml deploy-crc.yml --tags "make_crc_attach_interface"
+ansible-playbook -i inventory.yml deploy-crc.yml --tags "make_crc_storage"
+ansible-playbook -i inventory.yml deploy-crc.yml --tags "make_input"

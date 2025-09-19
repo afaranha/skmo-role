@@ -1,0 +1,204 @@
+---
+- name: Display install_yamls workflow plan
+  debug:
+    msg: |
+      🚀 CRC Infrastructure Workflow for {{ inventory_hostname }}
+      =========================================================
+      
+      CRC infrastructure setup (use openstack role for operators):
+      0. 🔧 make download_tools              (Download required tools)
+      1. 🏗️  make crc                        (Install and start CRC)
+      2. 🗄️  make crc_storage                (Configure persistent storage)
+      3. 🔗 make crc_attach_default_interface (Attach default interface)
+      4. 🔐 make input                       (Create input secrets)
+
+- name: Install required packages using dnf
+  ansible.builtin.dnf:
+    name: make
+    state: present
+  become: true
+  tags: [download_tools]
+
+- name: Step 0 - Download required tools
+  shell: |
+    cd {{ crc_install_yamls_path }}/devsetup
+    export PATH="{{ crc_bin_path }}:$PATH"
+    make download_tools
+  become_user: "{{ crc_user }}"
+  register: make_download_tools_result
+  timeout: "{{ crc_download_tools_timeout }}"
+  when: crc_run_download_tools | bool
+  tags: [download_tools]
+
+- name: Display download tools results
+  debug:
+    msg: |
+      ✅ Step 0 Complete - Download tools results for {{ inventory_hostname }}:
+      
+      {{ make_download_tools_result.stdout | default('No stdout') }}
+      
+      {% if make_download_tools_result.stderr %}
+      Stderr:
+      {{ make_download_tools_result.stderr }}
+      {% endif %}
+  when: crc_run_download_tools | bool
+  tags: [download_tools]
+
+- name: Check if CRC is already deployed
+  shell: |
+    export PATH="{{ crc_bin_path }}:$PATH"
+    crc status
+  become_user: "{{ crc_user }}"
+  register: crc_initial_status
+  ignore_errors: true
+  tags: [check_crc, make_crc]
+
+- name: Display current CRC status
+  debug:
+    msg: |
+      📊 Current CRC Status for {{ inventory_hostname }}:
+      {% if crc_initial_status is defined and crc_initial_status.rc is defined and crc_initial_status.rc == 0 %}
+      {{ crc_initial_status.stdout }}
+      {% else %}
+      CRC is not installed or not accessible
+      {% if crc_initial_status is defined and crc_initial_status.rc is defined %}
+      Return code: {{ crc_initial_status.rc }}
+      Error: {{ crc_initial_status.stderr | default('Unknown error') }}
+      {% else %}
+      Previous check failed or was skipped
+      {% endif %}
+      {% endif %}
+  tags: [check_crc, make_crc]
+
+- name: Determine if CRC installation is needed
+  set_fact:
+    crc_needs_install: >-
+      {{
+        (crc_initial_status is not defined or crc_initial_status.rc is not defined or crc_initial_status.rc != 0 or 'Running' not in (crc_initial_status.stdout | default(''))) or
+        not (crc_skip_if_running | bool)
+      }}
+  tags: [check_crc, make_crc]
+
+- name: Display installation decision
+  debug:
+    msg: |
+      🔍 CRC Installation Decision for {{ inventory_hostname }}:
+      {% if not (crc_skip_if_running | bool) %}
+      🔄 Force installation enabled (crc_skip_if_running: false)
+      {% elif crc_initial_status is not defined or crc_initial_status.rc is not defined or crc_initial_status.rc != 0 or 'Running' not in (crc_initial_status.stdout | default('')) %}
+      ⚠️  CRC installation/start needed
+      {% else %}
+      ✅ CRC is already running - skipping installation step
+      {% endif %}
+  tags: [check_crc, make_crc]
+
+- name: Step 1 - Install and start CRC using install_yamls
+  shell: |
+    cd {{ crc_devsetup_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    export PULL_SECRET={{ crc_pull_secret_path }}
+    export CPUS={{ crc_cpus }}
+    export MEMORY={{ crc_memory }}
+    export DISK={{ crc_disk }}
+    make crc
+  become_user: "{{ crc_user }}"
+  register: make_crc_result
+  timeout: "{{ crc_install_timeout }}"
+  when: crc_run_install | bool and crc_needs_install | bool
+  tags: make_crc
+
+- name: Display make crc results
+  debug:
+    msg: |
+      {% if crc_needs_install %}
+      ✅ Step 1 Complete - make crc results for {{ inventory_hostname }}:
+      
+      {{ make_crc_result.stdout | default('No stdout') }}
+      
+      {% if make_crc_result.stderr %}
+      Stderr:
+      {{ make_crc_result.stderr }}
+      {% endif %}
+      {% else %}
+      ✅ Step 1 Skipped - CRC was already running on {{ inventory_hostname }}
+      {% endif %}
+  when: crc_run_install | bool
+  tags: make_crc
+
+- name: Verify CRC is running
+  shell: |
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    oc cluster-info
+  become_user: "{{ crc_user }}"
+  register: crc_status
+  tags: verify_crc
+
+- name: Step 2 - Configure CRC storage
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make crc_storage
+  become_user: "{{ crc_user }}"
+  register: make_crc_storage_result
+  timeout: "{{ crc_storage_timeout }}"
+  when: crc_run_storage | bool
+  tags: make_crc_storage
+
+- name: Step 3 - Attach default interface to CRC
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make crc_attach_default_interface
+  become_user: "{{ crc_user }}"
+  register: make_crc_attach_result
+  timeout: "{{ crc_attach_timeout }}"
+  when: crc_run_attach_interface | bool
+  tags: make_crc_attach_interface
+
+- name: Step 4 - Create input secrets
+  shell: |
+    cd {{ crc_install_yamls_path }}
+    export PATH="{{ crc_bin_path }}:$PATH"
+    eval $(crc oc-env)
+    make input
+  become_user: "{{ crc_user }}"
+  register: make_input_result
+  timeout: "{{ crc_input_timeout }}"
+  when: crc_run_input | bool
+  tags: make_input
+
+- name: Display final workflow status
+  debug:
+    msg: |
+      🎉 CRC Infrastructure Setup Complete for {{ inventory_hostname }}!
+      ================================================================
+      
+      📊 CRC Status:
+      {% if crc_status is defined and crc_status.stdout is defined %}{{ crc_status.stdout }}{% else %}CRC cluster is accessible and running{% endif %}
+      
+      ✅ Completed Steps:
+      {% if crc_run_download_tools %}0. ✅ make download_tools - Required tools downloaded{% endif %}
+      {% if crc_run_install and (crc_needs_install is defined and crc_needs_install) %}1. ✅ make crc - CRC installed and running{% elif crc_run_install %}1. ⏭️  make crc - Skipped (already running){% endif %}
+      {% if crc_run_storage %}2. ✅ make crc_storage - Storage configured{% endif %}
+      {% if crc_run_attach_interface %}3. ✅ make crc_attach_default_interface - Default interface attached{% endif %}
+      {% if crc_run_input %}4. ✅ make input - Secrets created{% endif %}
+      
+      🚀 Ready for OpenStack operators installation:
+      ```bash
+      # Use the openstack role for operators installation
+      ansible-playbook playbook.yml --tags openstack_operators
+      
+      # Or manually:
+      ssh {{ crc_user }}@{{ ansible_default_ipv4.address }}
+      cd ~/openstack/install_yamls
+      export PATH="{{ crc_bin_path }}:$PATH"
+      eval $(crc oc-env)
+      make openstack         # Install operators
+      make openstack_deploy  # Deploy control plane
+      ```
+      
+      🌐 Region: {{ inventory_hostname }}
+  tags: summary
