@@ -1,12 +1,11 @@
 ---
 # Default variables for CRC role
-crc_user: fedora
 crc_cpus: 12
 crc_memory: 25600
 crc_disk: 100
 
-install_yamls_path: "/home/{{ crc_user }}/install_yamls"
-pull_secret_path: "/home/{{ crc_user }}/pull-secret.txt"
+install_yamls_path: "/home/{{ ansible_user }}/install_yamls"
+pull_secret_path: "/home/{{ ansible_user }}/pull-secret.txt"
 
 # Timeout settings (in seconds)
 crc_install_timeout: 2400        # 40 minutes

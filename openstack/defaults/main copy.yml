@@ -1,0 +1,24 @@
+---
+# Default variables for OpenStack role
+openstack_user: cloud-user
+openstack_install_yamls_path: "/home/cloud-user/install_yamls"
+openstack_bin_path: "/home/cloud-user/bin"
+
+# Namespace configuration - can be overridden per server
+openstack_namespace: "openstack"  # Default namespace for OpenStack services
+openstack_operators_namespace: "openstack-operators"  # Namespace for operators (usually consistent)
+
+# Timeout settings (in seconds)
+openstack_download_tools_timeout: 600  # 10 minutes
+openstack_operators_timeout: 1800      # 30 minutes
+openstack_init_timeout: 600            # 10 minutes
+openstack_deploy_timeout: 3600         # 60 minutes for deployment
+
+# Steps to execute
+openstack_run_download_tools: true     # Download tools step enabled by default
+openstack_run_operators: true
+openstack_run_init: true               # Run openstack_init after operators
+openstack_run_deploy: false           # Optional deployment step
+
+# OpenStack deployment options
+openstack_deploy_control_plane: false  # Set to true to automatically deploy control plane

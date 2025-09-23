@@ -1,0 +1,8 @@
+---
+- name: Deploy CRC and OpenStack using install_yamls
+  hosts: all
+  become: false
+  gather_facts: true
+  roles:
+    - crc
+    - openstack

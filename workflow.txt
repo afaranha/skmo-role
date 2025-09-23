@@ -1,3 +1,7 @@
 ansible-playbook -i inventory.yml deploy-crc.yml --tags "make_crc_attach_interface"
 ansible-playbook -i inventory.yml deploy-crc.yml --tags "make_crc_storage"
-ansible-playbook -i inventory.yml deploy-crc.yml --tags "make_input"
+ansible-playbook -i inventory.yml deploy-env.yml --tags "make_input"
+
+ansible-playbook -i inventory.yml deploy-env.yml --tags "openstack_operators"
+ansible-playbook -i inventory.yml deploy-env.yml --tags "openstack_init"
+ansible-playbook -i inventory.yml deploy-env.yml --tags "openstack_deploy"

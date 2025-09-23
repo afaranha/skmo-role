@@ -17,6 +17,7 @@ crc_servers:
         - "172.19.0"  # Tenant
         - "172.20.0"  # Storage Management
       ctlplane_interface: enp1s0
+      is_region_zero: yes
       
     afariasa-region-2:
       ansible_host: 10.0.203.236

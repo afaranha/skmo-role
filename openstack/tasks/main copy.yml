@@ -1,0 +1,198 @@
+---
+- name: Display OpenStack deployment plan
+  debug:
+    msg: |
+      📦 OpenStack Operators Deployment for {{ inventory_hostname }}
+      =============================================================
+      
+      This will install OpenStack operators using install_yamls:
+      {% if openstack_run_download_tools %}
+      - Download required tools via 'make download_tools'
+      {% endif %}
+      - Install OpenStack operators via 'make openstack'
+      {% if openstack_run_init %}
+      - Initialize OpenStack via 'make openstack_init'
+      {% endif %}
+      {% if openstack_deploy_control_plane %}
+      - Deploy OpenStack control plane via 'make openstack_deploy'
+      {% endif %}
+      
+      🏷️  Namespaces:
+      - Operators: {{ openstack_operators_namespace }}
+      - Services: {{ openstack_namespace }}
+
+- name: Step 0 - Download required tools (if needed)
+  shell: |
+    cd {{ openstack_install_yamls_path }}/devsetup
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    make download_tools
+  become_user: "{{ openstack_user }}"
+  register: openstack_download_tools_result
+  timeout: "{{ openstack_download_tools_timeout }}"
+  when: openstack_run_download_tools | bool
+  tags: [download_tools, openstack_download_tools]
+
+- name: Display download tools results
+  debug:
+    msg: |
+      ✅ Step 0 Complete - Download tools results for {{ inventory_hostname }}:
+      
+      {{ openstack_download_tools_result.stdout | default('No stdout') }}
+      
+      {% if openstack_download_tools_result.stderr %}
+      Stderr:
+      {{ openstack_download_tools_result.stderr }}
+      {% endif %}
+  when: openstack_run_download_tools | bool
+  tags: [download_tools, openstack_download_tools]
+
+- name: Verify CRC is running before OpenStack deployment
+  shell: |
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env --shell bash)
+    oc cluster-info
+  become_user: "{{ openstack_user }}"
+  register: crc_status_check
+  args:
+    executable: /bin/bash
+  tags: [verify_prerequisites, openstack_operators]
+
+- name: Create OpenStack services namespace
+  shell: |
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env --shell bash)
+    oc create namespace {{ openstack_namespace }} --dry-run=client -o yaml | oc apply -f -
+  become_user: "{{ openstack_user }}"
+  register: namespace_creation
+  when: openstack_run_init | bool or (openstack_deploy_control_plane | bool and openstack_run_deploy | bool)
+  args:
+    executable: /bin/bash
+  tags: [namespace_setup, openstack_init, openstack_deploy]
+
+- name: Display namespace creation results
+  debug:
+    msg: |
+      ✅ Namespace Setup for {{ inventory_hostname }}:
+      Target namespace: {{ openstack_namespace }}
+      {{ namespace_creation.stdout | default('No output') }}
+  when: namespace_creation is defined and namespace_creation.changed is defined
+  tags: [namespace_setup, openstack_init, openstack_deploy]
+
+- name: Display CRC status verification
+  debug:
+    msg: |
+      ✅ CRC Status Verified for {{ inventory_hostname }}:
+      {{ crc_status_check.stdout }}
+  tags: [verify_prerequisites, openstack_operators]
+
+- name: Install OpenStack operators
+  shell: |
+    cd {{ openstack_install_yamls_path }}
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env --shell bash)
+    make openstack
+  become_user: "{{ openstack_user }}"
+  register: make_openstack_result
+  timeout: "{{ openstack_operators_timeout }}"
+  when: openstack_run_operators | bool
+  args:
+    executable: /bin/bash
+  tags: openstack_operators
+
+- name: Display OpenStack operators installation results
+  debug:
+    msg: |
+      ✅ OpenStack Operators Installation Complete for {{ inventory_hostname }}:
+      
+      {{ make_openstack_result.stdout | default('No stdout') }}
+      
+      {% if make_openstack_result.stderr %}
+      Stderr:
+      {{ make_openstack_result.stderr }}
+      {% endif %}
+  when: openstack_run_operators | bool
+  tags: openstack_operators
+
+- name: Initialize OpenStack
+  shell: |
+    cd {{ openstack_install_yamls_path }}
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env --shell bash)
+    export NAMESPACE="{{ openstack_namespace }}"
+    make openstack_init
+  become_user: "{{ openstack_user }}"
+  register: make_openstack_init_result
+  timeout: "{{ openstack_init_timeout }}"
+  when: openstack_run_init | bool
+  args:
+    executable: /bin/bash
+  tags: openstack_init
+
+- name: Display OpenStack initialization results
+  debug:
+    msg: |
+      ✅ OpenStack Initialization Complete for {{ inventory_hostname }}:
+      
+      {{ make_openstack_init_result.stdout | default('No stdout') }}
+      
+      {% if make_openstack_init_result.stderr %}
+      Stderr:
+      {{ make_openstack_init_result.stderr }}
+      {% endif %}
+  when: openstack_run_init | bool
+  tags: openstack_init
+
+- name: Deploy OpenStack control plane (optional)
+  shell: |
+    cd {{ openstack_install_yamls_path }}
+    export PATH="{{ openstack_bin_path }}:$PATH"
+    eval $(crc oc-env --shell bash)
+    export NAMESPACE="{{ openstack_namespace }}"
+    make openstack_deploy
+  become_user: "{{ openstack_user }}"
+  register: openstack_deploy_result
+  timeout: "{{ openstack_deploy_timeout }}"
+  when: openstack_deploy_control_plane | bool and openstack_run_deploy | bool
+  args:
+    executable: /bin/bash
+  tags: openstack_deploy
+
+- name: Display OpenStack deployment results
+  debug:
+    msg: |
+      ✅ OpenStack Control Plane Deployment Complete for {{ inventory_hostname }}:
+      
+      {{ openstack_deploy_result.stdout | default('No stdout') }}
+      
+      {% if openstack_deploy_result.stderr %}
+      Stderr:
+      {{ openstack_deploy_result.stderr }}
+      {% endif %}
+  when: openstack_deploy_control_plane | bool and openstack_run_deploy | bool
+  tags: openstack_deploy
+
+- name: Display OpenStack deployment status
+  debug:
+    msg: |
+      🎉 OpenStack Deployment Status for {{ inventory_hostname }}!
+      ============================================================
+      
+      ✅ Completed Steps:
+      {% if openstack_run_operators %}1. ✅ OpenStack operators installed{% endif %}
+      {% if openstack_run_init %}2. ✅ OpenStack initialized{% endif %}
+      {% if openstack_deploy_control_plane and openstack_run_deploy %}3. ✅ OpenStack control plane deployed{% endif %}
+      
+      🚀 Manual deployment command (if needed):
+      ```bash
+      ssh {{ openstack_user }}@{{ ansible_default_ipv4.address }}
+      cd {{ openstack_install_yamls_path }}
+      export PATH="{{ openstack_bin_path }}:$PATH"
+      eval $(crc oc-env)
+      export NAMESPACE="{{ openstack_namespace }}"
+      {% if not openstack_run_init %}make openstack_init    # Initialize OpenStack{% endif %}
+      make openstack_deploy  # Deploy OpenStack control plane
+      ```
+      
+      🌐 Region: {{ inventory_hostname }}
+      🏷️  Namespace: {{ openstack_namespace }}
+  tags: summary

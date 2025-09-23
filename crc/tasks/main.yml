@@ -13,21 +13,21 @@
   ansible.builtin.git:
     repo: https://github.com/openstack-k8s-operators/install_yamls.git
     dest: "{{ install_yamls_path }}"
-  become_user: "{{ crc_user }}"
+  become_user: "{{ ansible_user }}"
   tags: download_tools
 
 - name: Step 3 - Download required tools
   shell: |
     cd {{ install_yamls_path }}/devsetup
     make download_tools
-  become_user: "{{ crc_user }}"
+  become_user: "{{ ansible_user }}"
   tags: download_tools
 
 - name: Check if CRC is already deployed
   shell: |
     crc status
     # ? oc cluster-info
-  become_user: "{{ crc_user }}"
+  become_user: "{{ ansible_user }}"
   register: crc_initial_status
   ignore_errors: true
   tags: [check_crc, make_crc]
@@ -45,7 +45,7 @@
     export MEMORY={{ crc_memory }}
     export DISK={{ crc_disk }}
     make crc
-  become_user: "{{ crc_user }}"
+  become_user: "{{ ansible_user }}"
   register: make_crc_result
   timeout: "{{ crc_install_timeout }}"
   when: crc_needs_install | bool
@@ -62,7 +62,7 @@
     eval $(crc oc-env)
     oc login -u kubeadmin -p 12345678 https://api.crc.testing:6443
     make crc_attach_default_interface
-  become_user: "{{ crc_user }}"
+  become_user: "{{ ansible_user }}"
   register: make_crc_attach_result
   tags: make_crc_attach_interface
 
@@ -77,7 +77,7 @@
     eval "$(crc oc-env)"
     oc login -u kubeadmin -p 12345678 https://api.crc.testing:6443
     make crc_storage
-  become_user: "{{ crc_user }}"
+  become_user: "{{ ansible_user }}"
   register: make_crc_storage_result
   tags: make_crc_storage
 
@@ -91,8 +91,8 @@
     cd {{ install_yamls_path }}
     eval "$(crc oc-env)"
     oc login -u kubeadmin -p 12345678 https://api.crc.testing:6443
-    make input
-  become_user: "{{ crc_user }}"
+    NAMESPACE={{ openstack_namespace }} make input
+  become_user: "{{ ansible_user }}"
   register: make_input_result
   tags: make_input
 
